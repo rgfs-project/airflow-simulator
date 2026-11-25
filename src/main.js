@@ -12,8 +12,7 @@ import './style.css';
 // ---------------------------------------------------------------------------
 // Device profile
 // ---------------------------------------------------------------------------
-const MOBILE = matchMedia('(max-width: 800px), (pointer: coarse) and (max-height: 520px)').matches
-  || matchMedia('(pointer: coarse)').matches;
+const MOBILE = matchMedia('(max-width: 900px)').matches || matchMedia('(pointer: coarse)').matches;
 const quality = {
   pixelRatio: Math.min(window.devicePixelRatio, MOBILE ? 1.5 : 2),
   shadows: !MOBILE,
