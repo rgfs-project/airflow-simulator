@@ -217,42 +217,63 @@ export function buildUI(state, h) {
   }
   updateLegend(v);
 
+  // HUD is built once; updates only change text so nothing reflows or jumps.
+  const row = (k) => {
+    const v = el('span', { class: 'v' });
+    return { node: el('div', { class: 'hud-row' }, el('span', { class: 'k' }, k), v), v };
+  };
+  const gauge = (label) => {
+    const t = el('div', { class: 't' }, '–');
+    const sub = el('div', { class: 's' }, '');
+    const thr = el('div', { class: 'throttle' }, 'THROTTLING');
+    return { node: el('div', { class: 'gauge' }, el('div', { class: 'l' }, label), t, sub, thr), t, sub, thr };
+  };
+  const hud = {
+    cpu: gauge('CPU'), gpu: gauge('GPU'),
+    air: row('Case air (avg)'), exh: row('Exhaust air'), hot: row('Hottest air'),
+    fin: row('Fan intake'), fout: row('Fan exhaust'), vent: row('Passive in / out'), pres: row('Case pressure'),
+  };
+  const pill = el('span', { class: 'pill' });
+  const presVal = el('span');
+  hud.pres.v.append(presVal, pill);
+  temps.append(el('div', { class: 'hud-big' }, hud.cpu.node, hud.gpu.node), hud.air.node, hud.exh.node, hud.hot.node);
+  flow.append(hud.fin.node, hud.fout.node, hud.vent.node, hud.pres.node);
+
+  const setText = (node, text) => { if (node.textContent !== text) node.textContent = text; };
+
   function updateStats(s, extra) {
     if (!s) return;
     const g = s.groups;
-    const gauge = (label, grp, limit) => el('div', { class: 'gauge' },
-      el('div', { class: 'l' }, label),
-      el('div', { class: 't', style: `color:${tempColor(grp.die, limit)}` }, `${grp.die.toFixed(0)}°`),
-      el('div', { class: 's' }, `${grp.power.toFixed(0)} W · fan ${Math.round(grp.fan * 100)}%`),
-      grp.throttle < 0.98 ? el('div', { class: 'throttle' }, `THROTTLING ${Math.round(grp.throttle * 100)}%`) : null);
-    const row = (k, val) => el('div', { class: 'hud-row' }, el('span', { class: 'k' }, k), el('span', { class: 'v' }, val));
-    temps.replaceChildren(
-      el('div', { class: 'hud-big' }, gauge('CPU', g.cpu, 100), gauge('GPU', g.gpu, 90)),
-      row('Case air (avg)', fmtT(s.airTemp)),
-      row('Exhaust air', fmtT(s.exhaustTemp)),
-      row('Hottest air', fmtT(s.airMax)),
-    );
+    for (const [key, limit] of [['cpu', 100], ['gpu', 90]]) {
+      const grp = g[key];
+      const ui = hud[key];
+      setText(ui.t, `${grp.die.toFixed(0)}°`);
+      ui.t.style.color = tempColor(grp.die, limit);
+      setText(ui.sub, `${grp.power.toFixed(0)} W · fan ${Math.round(grp.fan * 100)}%`);
+      ui.thr.style.visibility = grp.throttle < 0.98 ? 'visible' : 'hidden';
+      setText(ui.thr, `THROTTLING ${Math.round(grp.throttle * 100)}%`);
+    }
+    setText(hud.air.v, fmtT(s.airTemp));
+    setText(hud.exh.v, fmtT(s.exhaustTemp));
+    setText(hud.hot.v, fmtT(s.airMax));
     const cfm = (q) => `${(q * CFM_PER_M3S).toFixed(0)} CFM`;
+    setText(hud.fin.v, cfm(s.fanIn));
+    setText(hud.fout.v, cfm(s.fanOut));
+    setText(hud.vent.v, `${(s.ventIn * CFM_PER_M3S).toFixed(0)} / ${(s.ventOut * CFM_PER_M3S).toFixed(0)}`);
     const p = s.pressure;
-    const pill = Math.abs(p) < 0.15
-      ? el('span', { class: 'pill neu' }, 'neutral')
-      : p > 0 ? el('span', { class: 'pill pos' }, 'positive') : el('span', { class: 'pill neg' }, 'negative');
-    flow.replaceChildren(
-      row('Fan intake', cfm(s.fanIn)),
-      row('Fan exhaust', cfm(s.fanOut)),
-      row('Passive in / out', `${(s.ventIn * CFM_PER_M3S).toFixed(0)} / ${(s.ventOut * CFM_PER_M3S).toFixed(0)}`),
-      el('div', { class: 'hud-row' }, el('span', { class: 'k' }, 'Case pressure'),
-        el('span', { class: 'v' }, `${p >= 0 ? '+' : ''}${p.toFixed(2)} Pa `, pill)),
-    );
+    setText(presVal, `${p >= 0 ? '+' : '−'}${Math.abs(p).toFixed(2)} Pa`);
+    const kind = Math.abs(p) < 0.15 ? 'neu' : p > 0 ? 'pos' : 'neg';
+    pill.className = `pill ${kind}`;
+    setText(pill, { neu: 'neutral', pos: 'positive', neg: 'negative' }[kind]);
     for (const f of s.fans) {
       if (f.kind !== 'case') continue;
       const r = slotRows[f.id];
-      if (r) r.cfm.textContent = `${f.cfm.toFixed(0)} CFM${f.dp > 1 ? ` · fighting ${f.dp.toFixed(1)} Pa` : ''}`;
+      if (r) setText(r.cfm, `${f.cfm.toFixed(0)} CFM · against ${Math.max(0, f.dp).toFixed(1)} Pa`);
     }
     for (const slot of SLOTS) {
       if (!s.fans.some((f) => f.id === slot.id)) {
         const mode = state.modes[slot.id];
-        slotRows[slot.id].cfm.textContent = mode === 'open' ? 'passive vent' : mode === 'blocked' ? 'covered' : '';
+        setText(slotRows[slot.id].cfm, mode === 'open' ? 'passive vent' : mode === 'blocked' ? 'covered' : '—');
       }
     }
     const pe = document.getElementById('pressure-ends');
@@ -260,7 +281,7 @@ export function buildUI(state, h) {
       pe.children[0].textContent = `−${extra.pressureRange.toFixed(1)} Pa`;
       pe.children[1].textContent = `+${extra.pressureRange.toFixed(1)} Pa`;
     }
-    if (extra) perf.textContent = `Grid ${extra.grid} · ${extra.stepMs.toFixed(1)} ms/step · ${extra.fps.toFixed(0)} fps · sim t = ${s.time?.toFixed(1) ?? '—'} s`;
+    if (extra) setText(perf, `Grid ${extra.grid} · ${extra.stepMs.toFixed(1)} ms/step · ${extra.fps.toFixed(0)} fps · sim t = ${s.time?.toFixed(1) ?? '—'} s`);
   }
 
   return {

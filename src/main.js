@@ -49,7 +49,7 @@ const scene = new THREE.Scene();
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
-const camera = new THREE.PerspectiveCamera(38, 1, 0.01, 20);
+const camera = new THREE.PerspectiveCamera(38, 1, 0.03, 8);
 camera.position.set(-0.8, 0.26, 0.64);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;

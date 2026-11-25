@@ -7,10 +7,17 @@ const MODE_COLORS = { intake: 0x38b6ff, exhaust: 0xff7a3d };
 
 const partBox = (id) => PARTS.find((p) => p.id === id);
 
+// Parts are shrunk by a fraction of a millimetre so no face is ever coplanar
+// with a case panel or a neighbouring part (coplanar faces z-fight / flicker).
+const INSET = 0.0004;
+
 function boxMesh(min, max, material) {
-  const size = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
+  const size = [0, 1, 2].map((a) => {
+    const s = max[a] - min[a];
+    return s > INSET * 4 ? s - 2 * INSET : s;
+  });
   const m = new THREE.Mesh(new THREE.BoxGeometry(...size), material);
-  m.position.set(min[0] + size[0] / 2, min[1] + size[1] / 2, min[2] + size[2] / 2);
+  m.position.set((min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2);
   return m;
 }
 
@@ -80,7 +87,7 @@ function makeFan({ size, radius, hub, blades = 7, depth = 0.025, frame = true, a
   const hubMat = new THREE.MeshStandardMaterial({ color: accent, roughness: 0.4, metalness: 0.3 });
   rotor.add(new THREE.Mesh(hubGeo, hubMat));
   const bladeMat = new THREE.MeshStandardMaterial({
-    color: 0x3a404d, roughness: 0.5, metalness: 0.1, transparent: true, opacity: 0.92,
+    color: 0x3a404d, roughness: 0.5, metalness: 0.1,
   });
   const len = radius - hub;
   const bladeShape = new THREE.Shape();
@@ -244,7 +251,7 @@ export class CaseView {
     const fins = partBox('cpu-fins');
     this.cpuFinMat = new THREE.MeshStandardMaterial({ color: 0xc8cdd5, roughness: 0.32, metalness: 0.85, emissive: 0x000000 });
     const finCount = 38;
-    const finGeo = new THREE.BoxGeometry(fins.max[0] - fins.min[0], 0.0008, fins.max[2] - fins.min[2]);
+    const finGeo = new THREE.BoxGeometry(fins.max[0] - fins.min[0], 0.0012, fins.max[2] - fins.min[2]);
     const cpuFins = new THREE.InstancedMesh(finGeo, this.cpuFinMat, finCount);
     const m4 = new THREE.Matrix4();
     for (let n = 0; n < finCount; n++) {
@@ -277,8 +284,8 @@ export class CaseView {
     g.add(boxMesh([gp.min[0], gp.max[1], gp.min[2]], [gp.max[0], gp.max[1] + 0.003, gp.max[2]], dark));
     const gf = partBox('gpu-fins');
     this.gpuFinMat = new THREE.MeshStandardMaterial({ color: 0xaeb4be, roughness: 0.35, metalness: 0.85, emissive: 0x000000 });
-    const gCount = 70;
-    const gGeo = new THREE.BoxGeometry(gf.max[0] - gf.min[0], gf.max[1] - gf.min[1], 0.0008);
+    const gCount = 56;
+    const gGeo = new THREE.BoxGeometry(gf.max[0] - gf.min[0], gf.max[1] - gf.min[1], 0.0012);
     const gpuFins = new THREE.InstancedMesh(gGeo, this.gpuFinMat, gCount);
     for (let n = 0; n < gCount; n++) {
       const z = gf.min[2] + ((n + 0.5) / gCount) * (gf.max[2] - gf.min[2]);
@@ -323,7 +330,7 @@ export class CaseView {
 
       const ring = new THREE.Mesh(
         new THREE.TorusGeometry(0.0605, 0.0022, 8, 64),
-        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 }),
+        new THREE.MeshBasicMaterial({ color: 0xffffff }),
       );
       ring.position.copy(outward).multiplyScalar(0.001);
       ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), outward);
