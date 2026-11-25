@@ -135,7 +135,7 @@ button { -webkit-tap-highlight-color: transparent; }
   min-height: 0;
   border-radius: var(--r);
   overflow: hidden;
-  background: radial-gradient(120% 100% at 60% 35%, #1b2433 0%, #0d1016 55%, #050608 100%);
+  background: radial-gradient(110% 95% at 55% 45%, #2b2d32 0%, #17181b 55%, #0b0b0d 100%);
   box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.45);
   isolation: isolate;
 }

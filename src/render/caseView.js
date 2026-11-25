@@ -362,6 +362,7 @@ export class CaseView {
     this.buildParts();
     this.buildSlots();
     this.buildInternalFans();
+    this.applyClayStyle();
   }
 
   slotCenter(slot) {
@@ -908,6 +909,45 @@ export class CaseView {
       this.group.add(fan.group);
       this.internalFans.push({ def: f, ...fan });
     }
+  }
+
+  /**
+   * Visualisation style: every part becomes a smooth matte "clay" grey, keeping
+   * a little of its original lightness so parts stay distinguishable. Colour is
+   * left only on data: fan direction rings/arrows (unlit materials) and the
+   * heat glow on hot heatsinks (emissive, set in update()).
+   */
+  applyClayStyle() {
+    const seen = new Set();
+    const hsl = {};
+    this.group.traverse((o) => {
+      if (!o.isMesh) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (const m of mats) {
+        if (!m || seen.has(m) || !m.isMeshStandardMaterial) continue;
+        seen.add(m);
+        m.color.getHSL(hsl);
+        const glass = m.transparent && m.opacity < 0.12;
+        const smoked = m.transparent && !m.map && m.opacity >= 0.12 && m.opacity < 0.6;
+        if (smoked) {
+          // Translucent case panels: smoked charcoal so the interior stays readable.
+          m.color.setRGB(0.1, 0.105, 0.115);
+          m.opacity = 0.3;
+          m.needsUpdate = true;
+          continue;
+        }
+        const g = glass ? 0.92 : 0.4 + 0.42 * Math.pow(hsl.l, 0.8);
+        m.color.setRGB(g * 0.965, g * 0.98, g);
+        if (!glass) {
+          m.metalness = Math.min(m.metalness, 0.12);
+          m.roughness = Math.max(0.5, Math.min(0.7, m.roughness + 0.2));
+        }
+        // Keep the LED strips from glowing purple; heat glow is re-applied each frame.
+        if (m !== this.cpuFinMat && m !== this.gpuFinMat) m.emissive?.setRGB(0, 0, 0);
+        m.envMapIntensity = glass ? 1.2 : 0.7;
+        m.needsUpdate = true;
+      }
+    });
   }
 
   setModes(modes) {

@@ -55,8 +55,8 @@ const state = {
 const viewport = document.getElementById('viewport');
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(quality.pixelRatio);
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.1;
+renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.toneMappingExposure = 0.95;
 renderer.shadowMap.enabled = quality.shadows;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 viewport.prepend(renderer.domElement);
@@ -64,7 +64,7 @@ viewport.prepend(renderer.domElement);
 const scene = new THREE.Scene();
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-scene.environmentIntensity = 0.85;
+scene.environmentIntensity = 0.9;
 
 const camera = new THREE.PerspectiveCamera(36, 1, 0.03, 8);
 const HOME_DIR = new THREE.Vector3(-0.8, 0.26, 0.64).normalize();
@@ -79,8 +79,8 @@ let cameraTouched = false;
 controls.addEventListener('start', () => { cameraTouched = true; });
 
 // Studio lighting: soft sky, a shadow-casting key, a cool rim and a warm fill.
-scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x10131a, 0.45));
-const key = new THREE.DirectionalLight(0xffffff, 1.7);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x1a1b1e, 0.55));
+const key = new THREE.DirectionalLight(0xffffff, 1.35);
 key.position.set(-0.9, 1.6, 1.1);
 key.castShadow = quality.shadows;
 key.shadow.mapSize.set(2048, 2048);
@@ -91,10 +91,10 @@ key.shadow.bias = -0.0004;
 key.shadow.normalBias = 0.0015;
 key.shadow.radius = 4;
 scene.add(key);
-const rim = new THREE.DirectionalLight(0x7fb4ff, 0.9);
+const rim = new THREE.DirectionalLight(0xdfe8ff, 0.7);
 rim.position.set(0.9, 0.7, -1.2);
 scene.add(rim);
-const fill = new THREE.DirectionalLight(0xffd6b0, 0.35);
+const fill = new THREE.DirectionalLight(0xffffff, 0.3);
 fill.position.set(1.2, 0.3, 0.8);
 scene.add(fill);
 
@@ -120,17 +120,29 @@ function makeFloor() {
   const cv = document.createElement('canvas');
   cv.width = cv.height = n;
   const ctx = cv.getContext('2d');
-  const step = n / 40;
-  ctx.strokeStyle = 'rgba(120,150,200,0.22)';
-  ctx.lineWidth = 1.5;
-  for (let i = 0; i <= 40; i++) {
+  // Soft pool of light under the case, with a barely-there grid fading out.
+  const pool = ctx.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
+  pool.addColorStop(0, 'rgba(255,255,255,0.16)');
+  pool.addColorStop(0.35, 'rgba(255,255,255,0.06)');
+  pool.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = pool;
+  ctx.fillRect(0, 0, n, n);
+  const step = n / 48;
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+  ctx.lineWidth = 1.2;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(n / 2, n / 2, n * 0.42, 0, Math.PI * 2);
+  ctx.clip();
+  for (let i = 0; i <= 48; i++) {
     ctx.beginPath(); ctx.moveTo(i * step, 0); ctx.lineTo(i * step, n); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0, i * step); ctx.lineTo(n, i * step); ctx.stroke();
   }
+  ctx.restore();
   ctx.globalCompositeOperation = 'destination-in';
   const fade = ctx.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
   fade.addColorStop(0, 'rgba(0,0,0,1)');
-  fade.addColorStop(0.55, 'rgba(0,0,0,0.6)');
+  fade.addColorStop(0.6, 'rgba(0,0,0,0.5)');
   fade.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = fade;
   ctx.fillRect(0, 0, n, n);
@@ -141,7 +153,7 @@ function makeFloor() {
   gridMesh.rotation.x = -Math.PI / 2;
   g.add(gridMesh);
   if (quality.shadows) {
-    const catcher = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), new THREE.ShadowMaterial({ opacity: 0.45 }));
+    const catcher = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), new THREE.ShadowMaterial({ opacity: 0.5 }));
     catcher.rotation.x = -Math.PI / 2;
     catcher.position.y = 0.0005;
     catcher.receiveShadow = true;
