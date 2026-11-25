@@ -7,11 +7,24 @@ import { CaseView } from './render/caseView.js';
 import { Particles } from './render/particles.js';
 import { Slice } from './render/slice.js';
 import { buildUI } from './ui.js';
+import './style.css';
+
+// ---------------------------------------------------------------------------
+// Device profile
+// ---------------------------------------------------------------------------
+const MOBILE = matchMedia('(max-width: 800px), (pointer: coarse) and (max-height: 520px)').matches
+  || matchMedia('(pointer: coarse)').matches;
+const quality = {
+  pixelRatio: Math.min(window.devicePixelRatio, MOBILE ? 1.5 : 2),
+  shadows: !MOBILE,
+  trail: MOBILE ? 10 : 14,
+};
 
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
 const state = {
+  mobile: MOBILE,
   modes: { ...PRESETS.balanced.modes },
   caseFanSpeed: 0.7,
   gpuType: DEFAULT_GPU,
@@ -23,10 +36,10 @@ const state = {
   timeScale: 0.25,
   paused: false,
   buoyancy: true,
-  resolution: matchMedia('(max-width: 800px)').matches ? 'low' : 'medium',
+  resolution: MOBILE ? 'low' : 'medium',
   view: {
     particles: true,
-    count: 3500,
+    count: MOBILE ? 1500 : 3500,
     color: 'temperature',
     seedMix: 0.15,
     slice: false,
@@ -41,51 +54,128 @@ const state = {
 // Three.js scene
 // ---------------------------------------------------------------------------
 const viewport = document.getElementById('viewport');
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(quality.pixelRatio);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 1.1;
+renderer.shadowMap.enabled = quality.shadows;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 viewport.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.85;
 
-const camera = new THREE.PerspectiveCamera(38, 1, 0.03, 8);
-camera.position.set(-0.8, 0.26, 0.64);
+const camera = new THREE.PerspectiveCamera(36, 1, 0.03, 8);
+const HOME_DIR = new THREE.Vector3(-0.8, 0.26, 0.64).normalize();
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.minDistance = 0.25;
 controls.maxDistance = 3;
-controls.target.set(0, 0.03, 0);
+controls.target.set(0, 0.02, 0);
+controls.maxPolarAngle = Math.PI * 0.62; // do not dive far under the floor
+let cameraTouched = false;
+controls.addEventListener('start', () => { cameraTouched = true; });
 
-scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x1a1d24, 0.6));
-const key = new THREE.DirectionalLight(0xffffff, 1.4);
-key.position.set(-1, 2, 1.5);
+// Studio lighting: soft sky, a shadow-casting key, a cool rim and a warm fill.
+scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x10131a, 0.45));
+const key = new THREE.DirectionalLight(0xffffff, 1.7);
+key.position.set(-0.9, 1.6, 1.1);
+key.castShadow = quality.shadows;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.left = -0.45; key.shadow.camera.right = 0.45;
+key.shadow.camera.top = 0.45; key.shadow.camera.bottom = -0.45;
+key.shadow.camera.near = 0.5; key.shadow.camera.far = 4;
+key.shadow.bias = -0.0004;
+key.shadow.normalBias = 0.0015;
+key.shadow.radius = 4;
 scene.add(key);
+const rim = new THREE.DirectionalLight(0x7fb4ff, 0.9);
+rim.position.set(0.9, 0.7, -1.2);
+scene.add(rim);
+const fill = new THREE.DirectionalLight(0xffd6b0, 0.35);
+fill.position.set(1.2, 0.3, 0.8);
+scene.add(fill);
 
 const root = new THREE.Group();
 scene.add(root);
-const grid = new THREE.GridHelper(2, 40, 0x2a3242, 0x1a2030);
-scene.add(grid);
+const floor = makeFloor();
+scene.add(floor);
 
 let caseView = null;
-const particles = new Particles(12000, 14);
+const particles = new Particles(12000, quality.trail);
 const slice = new Slice();
 let field = null;
 let geometry = null;
 let summary = null;
 let stepMs = 0;
+const offset = { left: 0, bottom: 0 }; // px of the viewport covered by cards
+let caseSize = [0.21, 0.46, 0.44];
+
+/** Dark studio floor: a faint grid that fades out radially, plus shadow catcher. */
+function makeFloor() {
+  const g = new THREE.Group();
+  const n = 1024;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = n;
+  const ctx = cv.getContext('2d');
+  const step = n / 40;
+  ctx.strokeStyle = 'rgba(120,150,200,0.22)';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i <= 40; i++) {
+    ctx.beginPath(); ctx.moveTo(i * step, 0); ctx.lineTo(i * step, n); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i * step); ctx.lineTo(n, i * step); ctx.stroke();
+  }
+  ctx.globalCompositeOperation = 'destination-in';
+  const fade = ctx.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
+  fade.addColorStop(0, 'rgba(0,0,0,1)');
+  fade.addColorStop(0.55, 'rgba(0,0,0,0.6)');
+  fade.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = fade;
+  ctx.fillRect(0, 0, n, n);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.anisotropy = 8;
+  const gridMesh = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+  gridMesh.rotation.x = -Math.PI / 2;
+  g.add(gridMesh);
+  if (quality.shadows) {
+    const catcher = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), new THREE.ShadowMaterial({ opacity: 0.45 }));
+    catcher.rotation.x = -Math.PI / 2;
+    catcher.position.y = 0.0005;
+    catcher.receiveShadow = true;
+    g.add(catcher);
+  }
+  return g;
+}
+
+/** Frame the case so it fits the part of the viewport not covered by cards. */
+function frameCamera() {
+  const w = Math.max(1, viewport.clientWidth - offset.left);
+  const h = Math.max(1, viewport.clientHeight - offset.bottom);
+  const aspect = w / h;
+  const fitH = caseSize[1] * 1.3;
+  const fitW = Math.hypot(caseSize[0], caseSize[2]) * 1.2;
+  const vfov = THREE.MathUtils.degToRad(camera.fov);
+  const dist = Math.max(fitH / 2 / Math.tan(vfov / 2), fitW / 2 / (Math.tan(vfov / 2) * aspect));
+  camera.position.copy(controls.target).addScaledVector(HOME_DIR, Math.min(2.6, dist));
+  controls.update();
+}
 
 function resize() {
   const w = viewport.clientWidth;
   const h = viewport.clientHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
+  // Shift the projection so the case is centred in the free area beside/above the cards.
+  if (offset.left || offset.bottom) camera.setViewOffset(w, h, -offset.left / 2, offset.bottom / 2, w, h);
+  else camera.clearViewOffset();
   camera.updateProjectionMatrix();
+  if (!cameraTouched) frameCamera();
 }
-window.addEventListener('resize', resize);
+new ResizeObserver(resize).observe(viewport);
 resize();
 
 // ---------------------------------------------------------------------------
@@ -148,7 +238,18 @@ function buildCase(dims, gpuType, psuMode) {
   root.add(particles.object);
   root.add(slice.group);
   root.position.set(-dims[0] / 2, -dims[1] / 2, -dims[2] / 2);
-  grid.position.y = -dims[1] / 2 - 0.012;
+  floor.position.y = -dims[1] / 2 - 0.016;
+  caseSize = dims;
+  if (quality.shadows) {
+    caseView.group.traverse((o) => {
+      if (!o.isMesh) return;
+      const m = o.material;
+      const opaque = !m.transparent || m.alphaTest > 0;
+      o.castShadow = opaque;
+      o.receiveShadow = opaque;
+    });
+  }
+  if (!cameraTouched) frameCamera();
 }
 
 // ---------------------------------------------------------------------------
@@ -164,7 +265,7 @@ function setModes(modes, presetId = null) {
 
 const ui = buildUI(
   {
-    modes: state.modes, gpuType: state.gpuType, psuMode: state.psuMode, caseFanSpeed: state.caseFanSpeed, power: state.power, ambient: state.ambient,
+    mobile: state.mobile, modes: state.modes, gpuType: state.gpuType, psuMode: state.psuMode, caseFanSpeed: state.caseFanSpeed, power: state.power, ambient: state.ambient,
     coolerAuto: state.coolerAuto, coolerManual: state.coolerManual, timeScale: state.timeScale,
     resolution: state.resolution, buoyancy: state.buoyancy, view: state.view,
   },
@@ -194,6 +295,19 @@ const ui = buildUI(
       applyView();
     },
     onPause: togglePause,
+    onLayout: ({ left, bottom }) => {
+      offset.left = left;
+      offset.bottom = bottom;
+      resize();
+    },
+    onCamera: (action) => {
+      if (action === 'home') { cameraTouched = false; controls.target.set(0, 0.02, 0); frameCamera(); return; }
+      const d = camera.position.clone().sub(controls.target);
+      const len = THREE.MathUtils.clamp(d.length() * (action === 'in' ? 0.82 : 1.22), controls.minDistance, controls.maxDistance);
+      camera.position.copy(controls.target).addScaledVector(d.normalize(), len);
+      cameraTouched = true;
+      controls.update();
+    },
     onStep: () => worker.postMessage({ type: 'step' }),
     onReset: () => startWorker(),
     onResolution: (r) => {
@@ -204,6 +318,7 @@ const ui = buildUI(
   },
 );
 ui.setActivePreset('balanced');
+ui.setModes(state.modes);
 
 function togglePause() {
   state.paused = !state.paused;
@@ -251,7 +366,7 @@ renderer.domElement.addEventListener('pointermove', (ev) => {
     const fan = summary?.fans.find((f) => f.id === id);
     const mode = state.modes[id];
     const detail = fan ? ` · ${fan.cfm.toFixed(0)} CFM` : '';
-    tooltip.innerHTML = `<b>${slot.label}</b> — ${mode}${detail}<br><span style="color:var(--muted)">click to change</span>`;
+    tooltip.innerHTML = `<b>${slot.label}</b> · ${mode}${detail}<br><span style="color:var(--muted)">Click to change</span>`;
     const r = viewport.getBoundingClientRect();
     tooltip.style.left = `${ev.clientX - r.left}px`;
     tooltip.style.top = `${ev.clientY - r.top}px`;
@@ -268,6 +383,8 @@ renderer.domElement.addEventListener('pointerup', (ev) => {
   if (!id) return;
   const next = SLOT_MODES[(SLOT_MODES.indexOf(state.modes[id]) + 1) % SLOT_MODES.length];
   setModes({ [id]: next });
+  const label = { intake: 'Intake', exhaust: 'Exhaust', open: 'Open vent', blocked: 'Covered' }[next];
+  ui.toast(`${SLOTS.find((s) => s.id === id).label} → ${label}`);
 });
 window.addEventListener('keydown', (ev) => {
   if (ev.code === 'Space' && ev.target === document.body) {
@@ -283,12 +400,38 @@ const timer = new THREE.Timer();
 timer.connect(document);
 let frame = 0;
 let fps = 60;
+let slowFor = 0;
+let qualityStep = 0;
+
+/** Step quality down if the device cannot keep up (fewer streaks, then lower resolution). */
+function adaptQuality(dt) {
+  if (frame < 120 || qualityStep >= 3) return;
+  slowFor = fps < 28 ? slowFor + dt : Math.max(0, slowFor - dt * 2);
+  if (slowFor < 2.5) return;
+  slowFor = 0;
+  qualityStep++;
+  if (qualityStep <= 2) {
+    state.view.count = Math.max(600, Math.round(state.view.count * 0.6 / 100) * 100);
+    particles.setCount(state.view.count);
+    ui.setCount(state.view.count);
+  } else {
+    renderer.setPixelRatio(1);
+    renderer.shadowMap.enabled = false;
+    resize();
+  }
+}
+
+// Save battery: stop simulating while the tab is hidden.
+document.addEventListener('visibilitychange', () => {
+  worker?.postMessage({ type: 'config', config: { paused: document.hidden || state.paused } });
+});
 
 function animate(timestamp) {
   requestAnimationFrame(animate);
   timer.update(timestamp);
   const dt = Math.min(0.05, timer.getDelta());
   fps = fps * 0.95 + (1 / Math.max(dt, 1e-3)) * 0.05;
+  adaptQuality(dt);
   controls.update();
   if (field && summary) {
     const simDt = state.paused ? 0 : dt * state.timeScale;

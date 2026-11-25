@@ -373,20 +373,32 @@ export class CaseView {
 
   buildShell() {
     const [W, H, D] = this.dims;
-    const edges = new THREE.LineSegments(
-      new THREE.EdgesGeometry(new THREE.BoxGeometry(W, H, D)),
-      new THREE.LineBasicMaterial({ color: 0x6d7686, transparent: true, opacity: 0.8 }),
-    );
-    edges.position.set(W / 2, H / 2, D / 2);
-    this.group.add(edges);
+    // Anodised aluminium frame along the 12 edges, plus rubber feet.
+    const alu = new THREE.MeshStandardMaterial({ color: 0x2b2e35, roughness: 0.32, metalness: 0.85 });
+    const t = 0.008;
+    const bar = (sx, sy, sz, x, y, z) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), alu);
+      m.position.set(x, y, z);
+      this.group.add(m);
+    };
+    for (const y of [0, H]) for (const z of [0, D]) bar(W + t, t, t, W / 2, y, z);
+    for (const x of [0, W]) for (const z of [0, D]) bar(t, H + t, t, x, H / 2, z);
+    for (const x of [0, W]) for (const y of [0, H]) bar(t, t, D + t, x, y, D / 2);
+    const rubber = new THREE.MeshStandardMaterial({ color: 0x0c0c0e, roughness: 0.9, metalness: 0 });
+    const footGeo = new THREE.CylinderGeometry(0.013, 0.015, 0.012, 24);
+    for (const x of [0.03, W - 0.03]) for (const z of [0.035, D - 0.035]) {
+      const f = new THREE.Mesh(footGeo, rubber);
+      f.position.set(x, -0.0105, z);
+      this.group.add(f);
+    }
 
     const panelMat = new THREE.MeshStandardMaterial({
       color: 0x262b35, roughness: 0.55, metalness: 0.5, transparent: true, opacity: 0.32,
       side: THREE.DoubleSide, depthWrite: false,
     });
     const glassMat = new THREE.MeshStandardMaterial({
-      color: 0x9fc6ff, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.06,
-      side: THREE.DoubleSide, depthWrite: false,
+      color: 0x9cbbe0, roughness: 0.02, metalness: 0.0, transparent: true, opacity: 0.07,
+      side: THREE.DoubleSide, depthWrite: false, envMapIntensity: 1.6,
     });
     this.panelMat = panelMat;
 
@@ -421,6 +433,21 @@ export class CaseView {
       mesh.renderOrder = 2;
       this.group.add(mesh);
       if (!wall.glass) this.panelMeshes.push(mesh);
+    }
+
+    // Tempered glass has a black printed border.
+    {
+      const [Hh, Dd] = [this.dims[1], this.dims[2]];
+      const band = 0.016;
+      const sh = new THREE.Shape();
+      sh.moveTo(0, 0); sh.lineTo(Hh, 0); sh.lineTo(Hh, Dd); sh.lineTo(0, Dd); sh.lineTo(0, 0);
+      const hole = new THREE.Path();
+      hole.moveTo(band, band); hole.lineTo(band, Dd - band); hole.lineTo(Hh - band, Dd - band); hole.lineTo(Hh - band, band); hole.lineTo(band, band);
+      sh.holes.push(hole);
+      const border = new THREE.Mesh(planeShapeGeometry(sh, 0, -0.0012, 1),
+        new THREE.MeshStandardMaterial({ color: 0x050506, roughness: 0.25, metalness: 0.2, side: THREE.DoubleSide }));
+      this.group.add(border);
+      this.panelMeshes.push(border);
     }
 
     // Expansion-slot covers (perforated) over the rear vent.
@@ -472,6 +499,12 @@ export class CaseView {
     g.add(boxMesh([W - 0.02, 0.15, 0.17], [W - 0.01, 0.19, 0.21], vrm)); // chipset
     for (const y of [0.17, 0.13]) g.add(boxMesh([W - 0.018, y, 0.03], [W - 0.01, y + 0.008, 0.115], dark));
     g.add(boxMesh([W - 0.018, 0.255, 0.03], [W - 0.01, 0.263, 0.115], dark));
+    // 24-pin ATX and 8-pin EPS power connectors, M.2 heatsink.
+    const conn = new THREE.MeshStandardMaterial({ color: 0x0d0d0f, roughness: 0.6, metalness: 0.1 });
+    g.add(boxMesh([W - 0.027, 0.29, 0.246], [W - 0.01, 0.346, 0.258], conn));
+    g.add(boxMesh([W - 0.024, 0.395, 0.02], [W - 0.01, 0.405, 0.042], conn));
+    const m2 = new THREE.MeshStandardMaterial({ color: 0x3a3e46, roughness: 0.35, metalness: 0.85 });
+    g.add(boxMesh([W - 0.016, 0.262, 0.035], [W - 0.01, 0.278, 0.13], m2));
 
     // CPU: single-tower cooler, all black, 158 x 125 x 112 mm.
     const C = CPU_COOLER;
