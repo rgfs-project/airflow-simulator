@@ -1,5 +1,4 @@
 @import '@fontsource-variable/inter';
-@import '@fontsource/jetbrains-mono/500.css';
 
 /*
   Light product page. One design system, one set of tokens:
@@ -7,7 +6,8 @@
     - every control uses the same type: --fs-md / 500
     - text buttons are pills, icon buttons are circles
     - surfaces share --r; floating panels use --r-sm
-  Monospace capitals are reserved for small, non-interactive labels.
+  Small uppercase eyebrows (Inter, tracked) are reserved for non-interactive labels.
+  Inter is the only typeface.
 */
 :root {
   /* colour */
@@ -43,9 +43,8 @@
   --icon: 20px;
 
   /* type */
-  --sans: 'Inter Variable', Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  --fs-xs: 11px;   /* mono labels */
+  --sans: 'Inter Variable', sans-serif;
+  --fs-xs: 11px;   /* eyebrow labels */
   --fs-sm: 13px;   /* secondary text */
   --fs-md: 15px;   /* body and every control */
   --fs-lead: 17px; /* captions, dialog copy */
@@ -70,7 +69,7 @@ button, input, select { font: inherit; color: inherit; }
 button { -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 [hidden] { display: none !important; }
-.mono { font-family: var(--mono); font-size: var(--fs-xs); font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.eyebrow { font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); font-variant-numeric: tabular-nums; }
 .ico { display: inline-grid; place-items: center; width: var(--icon); height: var(--icon); flex: none; }
 .ico svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
@@ -149,7 +148,7 @@ button { -webkit-tap-highlight-color: transparent; }
   display: inline-flex; align-items: center; gap: 14px; height: var(--h-sm); padding: 0 14px;
   border-radius: 999px; background: var(--glass); border: 1px solid var(--glass-line);
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  font-family: var(--mono); font-size: var(--fs-xs); font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255, 255, 255, 0.6);
+  font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; font-variant-numeric: tabular-nums; color: rgba(255, 255, 255, 0.6);
 }
 .live { display: inline-flex; align-items: center; gap: 7px; }
 .live b { color: #fff; font-weight: 500; }
@@ -166,7 +165,7 @@ button { -webkit-tap-highlight-color: transparent; }
   background: var(--glass); border: 1px solid var(--glass-line);
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); color: rgba(255, 255, 255, 0.8);
 }
-.legend-item .title { font-family: var(--mono); font-size: var(--fs-xs); font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px; }
+.legend-item .title { font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 8px; }
 .legend-item .bar { height: 6px; border-radius: 3px; }
 .legend-item .ends { display: flex; justify-content: space-between; font-size: var(--fs-sm); margin-top: 6px; color: rgba(255, 255, 255, 0.6); }
 .swatches { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; font-size: var(--fs-sm); }

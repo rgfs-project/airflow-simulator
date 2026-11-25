@@ -301,7 +301,7 @@ function psuPanelTexture() {
   };
   ctx.strokeStyle = '#8d939c';
   ctx.lineWidth = 2;
-  ctx.font = '600 15px sans-serif';
+  ctx.font = "600 15px 'Inter Variable', sans-serif";
   ctx.fillStyle = '#8d939c';
   const group = (x, y, w, h, label, top) => {
     ctx.strokeRect(x, y, w, h);

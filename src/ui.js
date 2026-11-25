@@ -146,7 +146,7 @@ export function buildUI(state, h) {
     h.onPreset(presetIds[presetIndex]);
   };
   document.getElementById('presetbar').append(
-    el('div', { class: 'caption' }, el('span', { class: 'mono' }, 'Preset'), el('p', {}, presetTitle, ' ', presetHint)),
+    el('div', { class: 'caption' }, el('span', { class: 'eyebrow' }, 'Preset'), el('p', {}, presetTitle, ' ', presetHint)),
     el('div', { class: 'arrows' },
       el('button', { type: 'button', class: 'btn soft icon', 'aria-label': 'Previous preset', onclick: () => stepPreset(-1) }, icon('left')),
       el('button', { type: 'button', class: 'btn soft icon', 'aria-label': 'Next preset', onclick: () => stepPreset(1) }, icon('right'))),
@@ -161,7 +161,7 @@ export function buildUI(state, h) {
     const num = el('div', { class: 'num' }, '–');
     const sub = el('div', { class: 'sub' }, '');
     temp[key] = { num, sub };
-    return el('div', { class: 'stat' }, el('span', { class: 'mono' }, label), num, sub);
+    return el('div', { class: 'stat' }, el('span', { class: 'eyebrow' }, label), num, sub);
   };
   const throttleNote = el('p', { class: 'note bad', hidden: true }, '');
   side.append(card('Temperatures',
@@ -176,8 +176,8 @@ export function buildUI(state, h) {
   const kvRow = (key, label) => { kv[key] = el('span', {}, '–'); return el('div', { class: 'row' }, el('span', { class: 'k' }, label), kv[key]); };
   side.append(card('Airflow',
     el('div', { class: 'stats2' },
-      el('div', { class: 'stat' }, el('span', { class: 'mono' }, 'In · CFM'), flowIn),
-      el('div', { class: 'stat' }, el('span', { class: 'mono' }, 'Out · CFM'), flowOut)),
+      el('div', { class: 'stat' }, el('span', { class: 'eyebrow' }, 'In · CFM'), flowIn),
+      el('div', { class: 'stat' }, el('span', { class: 'eyebrow' }, 'Out · CFM'), flowOut)),
     el('div', { class: 'row strong' }, el('span', { class: 'k' }, 'Case pressure'), el('span', {}, pVal, pTag)),
     kvRow('gpuOut', 'GPU blower → rear'), kvRow('vent', 'Passive in / out'),
     kvRow('air', 'Case air'), kvRow('exh', 'Exhaust air'), kvRow('hot', 'Hottest air'), kvRow('load', 'System load')));
@@ -229,22 +229,22 @@ export function buildUI(state, h) {
       el('h1', { id: 'settings-h' }, 'Tune the simulation.'),
       el('div', { class: 'cols' },
         el('div', {},
-          el('h3', { class: 'mono' }, 'Streaks'),
+          el('h3', { class: 'eyebrow' }, 'Streaks'),
           el('div', { class: 'ctl' }, el('label', {}, 'Colour by'), viewCtl.color),
           viewCtl.count, viewCtl.seedMix),
         el('div', {},
-          el('h3', { class: 'mono' }, 'Cross-section'),
+          el('h3', { class: 'eyebrow' }, 'Cross-section'),
           el('div', { class: 'ctl' }, el('label', {}, 'Shows'), viewCtl.sliceField),
           el('div', { class: 'ctl' }, el('label', {}, 'Faces'), viewCtl.sliceAxis),
           viewCtl.slicePos)),
       el('hr'),
       el('div', { class: 'cols' },
         el('div', {},
-          el('h3', { class: 'mono' }, 'Simulation'),
+          el('h3', { class: 'eyebrow' }, 'Simulation'),
           slider({ label: 'Time scale (slow motion)', min: 0.05, max: 1, step: 0.05, value: state.timeScale, fmt: (x) => `${x.toFixed(2)}×`, onInput: (x) => h.onConfig({ timeScale: x }) }),
           toggle('Buoyancy (hot air rises)', state.buoyancy, (on) => h.onConfig({ buoyancy: on }))),
         el('div', {},
-          el('h3', { class: 'mono' }, 'Accuracy'),
+          el('h3', { class: 'eyebrow' }, 'Accuracy'),
           el('div', { class: 'ctl' }, el('label', { for: 'grid-res' }, 'Grid resolution'),
             select('grid-res', [['low', 'Low · fastest'], ['medium', 'Medium'], ['high', 'High · slowest']], state.resolution, (r) => h.onResolution(r))))),
       el('div', { class: 'dialog-actions' },

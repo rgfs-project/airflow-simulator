@@ -199,7 +199,7 @@ function startWorker() {
   if (worker) worker.terminate();
   worker = new Worker(new URL('./sim/worker.js', import.meta.url), { type: 'module' });
   worker.onmessage = onWorkerMessage;
-  worker.postMessage({
+  worker?.postMessage({
     type: 'init',
     options: { resolution: state.resolution, gpuType: state.gpuType, psuMode: state.psuMode, modes: state.modes, caseFanSpeed: state.caseFanSpeed, ambient: state.ambient, power: state.power },
     config: workerConfig(),
@@ -259,7 +259,7 @@ function setModes(modes, presetId = null) {
   ui.setModes(state.modes);
   ui.setActivePreset(presetId);
   caseView?.setModes(state.modes);
-  worker.postMessage({ type: 'modes', modes: state.modes });
+  worker?.postMessage({ type: 'modes', modes: state.modes });
 }
 
 const ui = buildUI(
@@ -272,11 +272,11 @@ const ui = buildUI(
     onPreset: (id) => setModes(PRESETS[id].modes, id),
     onPsu: (mode) => {
       state.psuMode = mode;
-      worker.postMessage({ type: 'psu', psuMode: mode, config: workerConfig() });
+      worker?.postMessage({ type: 'psu', psuMode: mode, config: workerConfig() });
     },
     onGpu: (type) => {
       state.gpuType = type;
-      worker.postMessage({ type: 'gpu', gpuType: type, config: workerConfig() });
+      worker?.postMessage({ type: 'gpu', gpuType: type, config: workerConfig() });
     },
     onMode: (slotId, mode) => setModes({ [slotId]: mode }),
     onConfig: (patch) => {
@@ -287,7 +287,7 @@ const ui = buildUI(
       if (patch.coolerManual) state.coolerManual = patch.coolerManual.cpu;
       if (patch.timeScale !== undefined) state.timeScale = patch.timeScale;
       if (patch.buoyancy !== undefined) state.buoyancy = patch.buoyancy;
-      worker.postMessage({ type: 'config', config: patch });
+      worker?.postMessage({ type: 'config', config: patch });
     },
     onView: (patch) => {
       Object.assign(state.view, patch);
@@ -307,7 +307,7 @@ const ui = buildUI(
       cameraTouched = true;
       controls.update();
     },
-    onStep: () => worker.postMessage({ type: 'step' }),
+    onStep: () => worker?.postMessage({ type: 'step' }),
     onReset: () => startWorker(),
     onResolution: (r) => {
       state.resolution = r;
@@ -322,7 +322,7 @@ ui.setModes(state.modes);
 function togglePause() {
   state.paused = !state.paused;
   ui.setPaused(state.paused);
-  worker.postMessage({ type: 'config', config: { paused: state.paused } });
+  worker?.postMessage({ type: 'config', config: { paused: state.paused } });
 }
 
 function applyView() {
@@ -448,7 +448,8 @@ function animate(timestamp) {
   renderer.render(scene, camera);
 }
 
-startWorker();
+// Canvas textures (PSU connector labels) are drawn with Inter, so let it load first.
+document.fonts.load("600 15px 'Inter Variable'").catch(() => {}).finally(startWorker);
 applyView();
 animate();
 
