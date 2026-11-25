@@ -107,7 +107,7 @@ export function buildUI(state, h) {
       el('button', { type: 'button', class: 'link', onclick: () => openModal('settings') }, 'Settings')),
     el('div', { class: 'actions' },
       el('button', { type: 'button', class: 'btn outline hide-sm', onclick: () => openModal('about') }, 'How it works'),
-      el('button', { type: 'button', class: 'btn square', 'aria-label': 'Settings', title: 'Settings', onclick: () => openModal('settings') }, icon('gear')),
+      el('button', { type: 'button', class: 'btn soft icon', 'aria-label': 'Settings', title: 'Settings', onclick: () => openModal('settings') }, icon('gear')),
       playBtn),
   );
 
@@ -120,7 +120,7 @@ export function buildUI(state, h) {
   const colorNames = { temperature: 'Temp', speed: 'Speed', source: 'Source' };
   const pills = {};
   const pill = (key, label, onclick) => {
-    pills[key] = el('button', { type: 'button', class: `pill pill-${key}`, onclick }, label);
+    pills[key] = el('button', { type: 'button', class: `btn glass pill-${key}`, 'aria-pressed': 'false', onclick }, label);
     return pills[key];
   };
   document.getElementById('overlay-bl').append(
@@ -133,9 +133,9 @@ export function buildUI(state, h) {
     pill('panels', 'Panels', () => setView({ panels: !view.panels })),
   );
   document.getElementById('overlay-br').append(
-    el('button', { type: 'button', class: 'circle', 'aria-label': 'Zoom in', onclick: () => h.onCamera('in') }, icon('plus')),
-    el('button', { type: 'button', class: 'circle', 'aria-label': 'Zoom out', onclick: () => h.onCamera('out') }, icon('minus')),
-    el('button', { type: 'button', class: 'circle', 'aria-label': 'Reset view', onclick: () => h.onCamera('home') }, icon('home')),
+    el('button', { type: 'button', class: 'btn glass icon', 'aria-label': 'Zoom in', onclick: () => h.onCamera('in') }, icon('plus')),
+    el('button', { type: 'button', class: 'btn glass icon', 'aria-label': 'Zoom out', onclick: () => h.onCamera('out') }, icon('minus')),
+    el('button', { type: 'button', class: 'btn glass icon', 'aria-label': 'Reset view', onclick: () => h.onCamera('home') }, icon('home')),
   );
 
   // ---- Preset bar (caption + arrows, under the stage) ------------------------------------
@@ -148,8 +148,8 @@ export function buildUI(state, h) {
   document.getElementById('presetbar').append(
     el('div', { class: 'caption' }, el('span', { class: 'mono' }, 'Preset'), el('p', {}, presetTitle, ' ', presetHint)),
     el('div', { class: 'arrows' },
-      el('button', { type: 'button', class: 'arrow', 'aria-label': 'Previous preset', onclick: () => stepPreset(-1) }, icon('left')),
-      el('button', { type: 'button', class: 'arrow', 'aria-label': 'Next preset', onclick: () => stepPreset(1) }, icon('right'))),
+      el('button', { type: 'button', class: 'btn soft icon', 'aria-label': 'Previous preset', onclick: () => stepPreset(-1) }, icon('left')),
+      el('button', { type: 'button', class: 'btn soft icon', 'aria-label': 'Next preset', onclick: () => stepPreset(1) }, icon('right'))),
   );
 
   // ---- Side cards ---------------------------------------------------------------------------
@@ -222,7 +222,7 @@ export function buildUI(state, h) {
     sliceAxis: seg([['0', 'Side'], ['1', 'Top'], ['2', 'Front']], String(view.sliceAxis), (c) => setView({ sliceAxis: +c, slice: true }), 'wide'),
     slicePos: slider({ label: 'Plane position', min: 0, max: 1, step: 0.01, value: view.slicePos, fmt: (x) => `${Math.round(x * 100)}%`, onInput: (x) => setView({ slicePos: x }) }),
   };
-  const closeBtn = () => el('button', { type: 'button', class: 'closebtn', 'aria-label': 'Close', onclick: () => closeModal() }, icon('close'));
+  const closeBtn = () => el('button', { type: 'button', class: 'btn soft icon closebtn', 'aria-label': 'Close', onclick: () => closeModal() }, icon('close'));
   const modals = {
     settings: el('div', { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'settings-h' },
       closeBtn(),
@@ -248,7 +248,7 @@ export function buildUI(state, h) {
           el('div', { class: 'ctl' }, el('label', { for: 'grid-res' }, 'Grid resolution'),
             select('grid-res', [['low', 'Low · fastest'], ['medium', 'Medium'], ['high', 'High · slowest']], state.resolution, (r) => h.onResolution(r))))),
       el('div', { class: 'dialog-actions' },
-        el('button', { type: 'button', class: 'btn primary lg', onclick: () => closeModal() }, 'Done'),
+        el('button', { type: 'button', class: 'btn primary', onclick: () => closeModal() }, 'Done'),
         el('button', { type: 'button', class: 'textlink', onclick: () => { h.onReset(); closeModal(); } }, 'Reset heat and start over'))),
     about: el('div', { class: 'dialog narrow', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'about-h' },
       closeBtn(),
@@ -257,7 +257,7 @@ export function buildUI(state, h) {
       el('p', {}, 'Heatsinks are porous blocks with direction-dependent drag. Their heat is carried away by the air passing through, and energy is conserved.'),
       el('p', {}, 'Open slots and expansion-slot covers act as passive vents: more intake than exhaust pushes air out through them (positive pressure); the reverse pulls unfiltered air in.'),
       el('div', { class: 'dialog-actions' },
-        el('button', { type: 'button', class: 'btn primary lg', onclick: () => closeModal() }, 'Got it'))),
+        el('button', { type: 'button', class: 'btn primary', onclick: () => closeModal() }, 'Got it'))),
   };
   let openName = null;
   let lastFocus = null;
@@ -279,11 +279,16 @@ export function buildUI(state, h) {
   }
   window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
 
+  function syncPills() {
+    for (const k of ['particles', 'slice', 'panels']) {
+      pills[k].classList.toggle('on', view[k]);
+      pills[k].setAttribute('aria-pressed', String(view[k]));
+    }
+  }
+
   function setView(patch) {
     h.onView(patch);
-    pills.particles.classList.toggle('on', view.particles);
-    pills.slice.classList.toggle('on', view.slice);
-    pills.panels.classList.toggle('on', view.panels);
+    syncPills();
     setText(pills.color, `Colour · ${colorNames[view.color]}`);
     for (const [k, ctl] of Object.entries(viewCtl)) ctl.set?.(k === 'sliceAxis' ? String(view[k]) : view[k]);
   }
@@ -405,10 +410,6 @@ export function buildUI(state, h) {
     setCount(n) { viewCtl.count.set(n); },
   };
   // Sync pill states once the caller has finished wiring (onView may reference ui).
-  queueMicrotask(() => {
-    pills.particles.classList.toggle('on', view.particles);
-    pills.slice.classList.toggle('on', view.slice);
-    pills.panels.classList.toggle('on', view.panels);
-  });
+  queueMicrotask(syncPills);
   return api;
 }
