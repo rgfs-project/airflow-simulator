@@ -24,6 +24,7 @@ export class Particles {
     this.tempRange = 20;
     this.speedRange = 3;
     this.brightness = 0.9;
+    this.colorScale = 1;
 
     const segs = maxCount * (trail - 1);
     this.positions = new Float32Array(segs * 6);
@@ -180,6 +181,7 @@ export class Particles {
         const sc = s >= 0 ? SOURCE_COLORS[s % SOURCE_COLORS.length] : s === -1 ? VENT_COLOR : [0.55, 0.55, 0.6];
         c[0] = sc[0]; c[1] = sc[1]; c[2] = sc[2];
       }
+      if (this.colorScale !== 1) { c[0] *= this.colorScale; c[1] *= this.colorScale; c[2] *= this.colorScale; }
       // Fade in after spawning and out before dying.
       const a = this.age[p];
       const env = Math.min(1, a / 0.12, (this.life[p] - a) / 0.3);

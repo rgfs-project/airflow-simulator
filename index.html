@@ -3,28 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#f4f4f2" />
+    <meta name="theme-color" content="#000000" />
     <meta name="description" content="Interactive 3D airflow and thermal simulator for a PC case." />
     <title>Airflow — PC case simulator</title>
   </head>
   <body>
     <header id="topbar"></header>
-    <div id="main">
-      <div id="stagecol">
-        <section id="stage">
-          <div id="viewport">
-            <div id="overlay-tl"></div>
-            <div id="legend"></div>
-            <div id="overlay-bl"></div>
-            <div id="overlay-br"></div>
-            <div id="tooltip" hidden></div>
-            <div id="toast" role="status" aria-live="polite"></div>
+    <main id="page">
+      <section id="overview" class="hero">
+        <div id="stagecol">
+          <div id="stage">
+            <div id="viewport">
+              <div id="dims"></div>
+              <div id="overlay-tl"></div>
+              <div id="legend"></div>
+              <div id="overlay-bl"></div>
+              <div id="overlay-br"></div>
+              <div id="tooltip" hidden></div>
+              <div id="toast" role="status" aria-live="polite"></div>
+            </div>
           </div>
-        </section>
-        <div id="presetbar"></div>
-      </div>
-      <aside id="side" aria-label="Readouts and controls"></aside>
-    </div>
+          <div id="presetbar"></div>
+        </div>
+        <aside id="live" aria-label="Live readouts"></aside>
+      </section>
+      <div id="sections"></div>
+    </main>
     <div id="modal-root"></div>
     <script type="module" src="./src/main.js"></script>
   </body>
