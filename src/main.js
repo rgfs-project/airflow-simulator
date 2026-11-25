@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { FluidGrid } from './sim/fluid.js';
-import { PRESETS, SLOTS, SLOT_MODES, CFM_PER_M3S } from './sim/model.js';
+import { PRESETS, SLOTS, SLOT_MODES, CFM_PER_M3S, GPUS, DEFAULT_GPU } from './sim/model.js';
 import { CaseView } from './render/caseView.js';
 import { Particles } from './render/particles.js';
 import { Slice } from './render/slice.js';
@@ -14,7 +14,9 @@ import { buildUI } from './ui.js';
 const state = {
   modes: { ...PRESETS.balanced.modes },
   caseFanSpeed: 0.7,
-  power: { cpu: 150, gpu: 300 },
+  gpuType: DEFAULT_GPU,
+  psuMode: 'down',
+  power: { cpu: 150, gpu: GPUS[DEFAULT_GPU].power },
   ambient: 22,
   coolerAuto: true,
   coolerManual: 0.7,
@@ -110,7 +112,7 @@ function startWorker() {
   worker.onmessage = onWorkerMessage;
   worker.postMessage({
     type: 'init',
-    options: { resolution: state.resolution, modes: state.modes, caseFanSpeed: state.caseFanSpeed, ambient: state.ambient, power: state.power },
+    options: { resolution: state.resolution, gpuType: state.gpuType, psuMode: state.psuMode, modes: state.modes, caseFanSpeed: state.caseFanSpeed, ambient: state.ambient, power: state.power },
     config: workerConfig(),
   });
 }
@@ -119,11 +121,12 @@ function onWorkerMessage(e) {
   const m = e.data;
   if (m.type === 'geometry') {
     const sameGrid = geometry && geometry.nx === m.nx && geometry.ny === m.ny && geometry.nz === m.nz;
+    const sameGpu = geometry && geometry.gpuType === m.gpuType && geometry.psuMode === m.psuMode;
     geometry = m;
-    if (!sameGrid) {
-      field = new FluidGrid(m.nx, m.ny, m.nz, m.h, m.dt);
-      field.solid = m.solid;
-      buildCase([m.nx * m.h, m.ny * m.h, m.nz * m.h]);
+    if (!sameGrid) field = new FluidGrid(m.nx, m.ny, m.nz, m.h, m.dt);
+    field.solid = m.solid;
+    if (!sameGrid || !sameGpu) {
+      buildCase([m.nx * m.h, m.ny * m.h, m.nz * m.h], m.gpuType, m.psuMode);
       particles.setField(field);
       slice.setField(field, m.pScale);
       slice.configure({ axis: state.view.sliceAxis, frac: state.view.slicePos, mode: state.view.sliceField });
@@ -136,9 +139,9 @@ function onWorkerMessage(e) {
   }
 }
 
-function buildCase(dims) {
+function buildCase(dims, gpuType, psuMode) {
   if (caseView) root.remove(caseView.group);
-  caseView = new CaseView(dims);
+  caseView = new CaseView(dims, gpuType, psuMode);
   caseView.setModes(state.modes);
   caseView.setPanelsVisible(state.view.panels);
   root.add(caseView.group);
@@ -161,12 +164,20 @@ function setModes(modes, presetId = null) {
 
 const ui = buildUI(
   {
-    modes: state.modes, caseFanSpeed: state.caseFanSpeed, power: state.power, ambient: state.ambient,
+    modes: state.modes, gpuType: state.gpuType, psuMode: state.psuMode, caseFanSpeed: state.caseFanSpeed, power: state.power, ambient: state.ambient,
     coolerAuto: state.coolerAuto, coolerManual: state.coolerManual, timeScale: state.timeScale,
     resolution: state.resolution, buoyancy: state.buoyancy, view: state.view,
   },
   {
     onPreset: (id) => setModes(PRESETS[id].modes, id),
+    onPsu: (mode) => {
+      state.psuMode = mode;
+      worker.postMessage({ type: 'psu', psuMode: mode, config: workerConfig() });
+    },
+    onGpu: (type) => {
+      state.gpuType = type;
+      worker.postMessage({ type: 'gpu', gpuType: type, config: workerConfig() });
+    },
     onMode: (slotId, mode) => setModes({ [slotId]: mode }),
     onConfig: (patch) => {
       if (patch.caseFanSpeed !== undefined) state.caseFanSpeed = patch.caseFanSpeed;

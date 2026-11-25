@@ -1,4 +1,4 @@
-import { SLOTS, PRESETS, CFM_PER_M3S } from './sim/model.js';
+import { SLOTS, PRESETS, CFM_PER_M3S, GPUS, PSU_MODES, PSU } from './sim/model.js';
 import { cssGradient, heat, turbo, diverging, SOURCE_COLORS } from './render/colormap.js';
 
 const MODE_LABELS = { intake: 'In', exhaust: 'Out', open: 'Open', blocked: 'Shut' };
@@ -86,8 +86,24 @@ export function buildUI(state, h) {
     fmt: (v) => `${Math.round(v * 100)}%`, onInput: (v) => h.onConfig({ coolerManual: { cpu: v, gpu: v } }),
   });
   coolerSlider.style.display = state.coolerAuto ? 'none' : '';
+  const gpuSel = el('select', { id: 'gpu-type' },
+    ...Object.entries(GPUS).map(([id, gdef]) => {
+      const o = el('option', { value: id }, gdef.label);
+      if (id === state.gpuType) o.selected = true;
+      return o;
+    }));
+  gpuSel.addEventListener('change', () => h.onGpu(gpuSel.value));
+  const psuSel = el('select', { id: 'psu-mode' },
+    ...Object.entries(PSU_MODES).map(([id, label]) => {
+      const o = el('option', { value: id }, label);
+      if (id === state.psuMode) o.selected = true;
+      return o;
+    }));
+  psuSel.addEventListener('change', () => h.onPsu(psuSel.value));
   panel.append(el('div', { class: 'section' },
     el('h2', {}, 'Fans & load'),
+    el('div', { class: 'ctl' }, el('label', { for: 'gpu-type' }, 'Graphics card'), gpuSel),
+    el('div', { class: 'ctl' }, el('label', { for: 'psu-mode' }, `PSU (${PSU.rating} W)`), psuSel),
     slider({
       label: 'Case fan speed', min: 0, max: 1, step: 0.01, value: state.caseFanSpeed,
       fmt: (v) => `${Math.round(v * 100)}%`, onInput: (v) => h.onConfig({ caseFanSpeed: v }),
@@ -230,14 +246,14 @@ export function buildUI(state, h) {
   };
   const hud = {
     cpu: gauge('CPU'), gpu: gauge('GPU'),
-    air: row('Case air (avg)'), exh: row('Exhaust air'), hot: row('Hottest air'),
-    fin: row('Fan intake'), fout: row('Fan exhaust'), vent: row('Passive in / out'), pres: row('Case pressure'),
+    air: row('Case air (avg)'), exh: row('Exhaust air'), hot: row('Hottest air'), psu: row('PSU'), load: row('System load'),
+    fin: row('Fan intake'), fout: row('Fan exhaust'), gpuOut: row('GPU blower → rear'), vent: row('Passive in / out'), pres: row('Case pressure'),
   };
   const pill = el('span', { class: 'pill' });
   const presVal = el('span');
   hud.pres.v.append(presVal, pill);
-  temps.append(el('div', { class: 'hud-big' }, hud.cpu.node, hud.gpu.node), hud.air.node, hud.exh.node, hud.hot.node);
-  flow.append(hud.fin.node, hud.fout.node, hud.vent.node, hud.pres.node);
+  temps.append(el('div', { class: 'hud-big' }, hud.cpu.node, hud.gpu.node), hud.air.node, hud.exh.node, hud.hot.node, hud.psu.node, hud.load.node);
+  flow.append(hud.fin.node, hud.fout.node, hud.gpuOut.node, hud.vent.node, hud.pres.node);
 
   const setText = (node, text) => { if (node.textContent !== text) node.textContent = text; };
 
@@ -256,9 +272,13 @@ export function buildUI(state, h) {
     setText(hud.air.v, fmtT(s.airTemp));
     setText(hud.exh.v, fmtT(s.exhaustTemp));
     setText(hud.hot.v, fmtT(s.airMax));
+    const pg = g.psu;
+    if (pg) setText(hud.psu.v, `${pg.die.toFixed(0)}°C · ${pg.fan < 0.02 ? 'fan off' : `fan ${Math.round(pg.fan * 100)}%`}`);
+    setText(hud.load.v, `${s.psuLoad.toFixed(0)} W · ${(s.psuEff * 100).toFixed(1)}%`);
     const cfm = (q) => `${(q * CFM_PER_M3S).toFixed(0)} CFM`;
     setText(hud.fin.v, cfm(s.fanIn));
     setText(hud.fout.v, cfm(s.fanOut));
+    setText(hud.gpuOut.v, s.gpuType === 'blower' ? cfm(s.gpuOut) : '—');
     setText(hud.vent.v, `${(s.ventIn * CFM_PER_M3S).toFixed(0)} / ${(s.ventOut * CFM_PER_M3S).toFixed(0)}`);
     const p = s.pressure;
     setText(presVal, `${p >= 0 ? '+' : '−'}${Math.abs(p).toFixed(2)} Pa`);

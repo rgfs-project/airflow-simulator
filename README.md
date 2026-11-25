@@ -21,6 +21,18 @@ npm test           # physics sanity tests (Node 20+)
 - **Readouts**: CPU and GPU die temperatures (with thermal throttling), average, exhaust and hottest air temperatures, CFM per fan, passive vent flow, and case pressure in pascals.
 - **Visualisation**: streaks coloured by air temperature, speed, or the inlet the air came through. There's also a movable cross-section plane that shows speed, temperature or pressure, plus slow motion, pause and single-step.
 
+## Modelled hardware
+
+| Part | Model |
+| --- | --- |
+| Case fans | 140 x 140 x 25 mm, nine sickle blades, ~140 m³/h (82 CFM) and ~2.2 mm H₂O at 1500 rpm. Three front, three top, one rear, one bottom. |
+| CPU cooler | Single tower, 158 x 125 x 112 mm, seven heatpipes. Fins are parallel to the motherboard, with two 120 mm fans in push-pull (~60 CFM, ~2.3 mm H₂O each). |
+| Graphics card | Choice of: **workstation blower** (267 x 111 x 40 mm dual-slot, 300 W: one radial blower pulls air in through both faces and blows it through an enclosed fin stack and out of the slotted bracket), or **open-air** 3-fan gaming card (dumps heat into the case). |
+| RAM | Four bare DDR5 DIMMs, 133.35 x 31.25 mm. |
+| PSU | 1600 W ATX unit, 150 x 86 x 210 mm, 135 mm hybrid fan (off until warm), Titanium-class efficiency curve. Fan down (fresh air from the floor, its own airflow path) or fan up (draws case air and works as an extra exhaust). |
+
+Fan and PSU ratings are typical published figures for parts of this kind. Change them in `src/sim/model.js`.
+
 ## How the simulation works
 
 | Piece | Model |

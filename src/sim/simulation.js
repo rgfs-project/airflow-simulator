@@ -1,7 +1,7 @@
 import { FluidGrid, FIXED, VENT, FREE } from './fluid.js';
 import {
   CASE, SLOTS, FACES, CASE_FAN, VENT_K, FIXED_VENTS, PARTS, PLATES,
-  INTERNAL_FANS, HEAT_GROUPS, PRESETS, CFM_PER_M3S,
+  INTERNAL_FANS, HEAT_GROUPS, PRESETS, CFM_PER_M3S, GPUS, DEFAULT_GPU, PSU, psuLayout, psuEfficiency,
 } from './model.js';
 
 const RHO = 1.2; // kg/m^3
@@ -27,11 +27,32 @@ export class Simulation {
     this.dt = opts.dt || 0.005;
     this.time = 0;
     this.modes = { ...PRESETS.balanced.modes, ...(opts.modes || {}) };
+    this.gpuType = GPUS[opts.gpuType] ? opts.gpuType : DEFAULT_GPU;
+    this.psuMode = opts.psuMode === 'up' ? 'up' : 'down';
+    this.psuLoad = 0;
     this.caseFanSpeed = opts.caseFanSpeed ?? 0.7;
     this.ambient = opts.ambient ?? 22;
-    this.power = { cpu: HEAT_GROUPS.cpu.defaultPower, gpu: HEAT_GROUPS.gpu.defaultPower, ...(opts.power || {}) };
+    this.power = { cpu: HEAT_GROUPS.cpu.defaultPower, gpu: GPUS[this.gpuType].power, ...(opts.power || {}) };
     this.coolerAuto = { cpu: true, gpu: true };
     this.coolerManual = { cpu: 0.7, gpu: 0.6 };
+    this.buildGrid();
+  }
+
+  get gpu() { return GPUS[this.gpuType]; }
+  get psu() { return psuLayout(this.psuMode); }
+
+  /** Flip the PSU (fan down to the floor, or up into the case); rebuilds the grid. */
+  setPsuMode(mode) {
+    this.psuMode = mode === 'up' ? 'up' : 'down';
+    this.fans = [];
+    this.buildGrid();
+  }
+
+  /** Swap the graphics card; the grid is rebuilt and temperatures restart. */
+  setGpu(type) {
+    if (!GPUS[type]) return;
+    this.gpuType = type;
+    this.fans = [];
     this.buildGrid();
   }
 
@@ -57,14 +78,15 @@ export class Simulation {
     this.grid = g;
 
     this.groups = {};
-    for (const [id, def] of Object.entries(HEAT_GROUPS)) {
+    for (const [id, base] of Object.entries(HEAT_GROUPS)) {
+      const def = id === 'gpu' ? { ...base, ...this.gpu.heat } : base;
       this.groups[id] = {
         id, def, cells: [], sink: this.ambient, die: this.ambient,
-        throttle: 1, fanSpeed: 0.5, airTemp: this.ambient, speed: 0, G: def.G0, heatOut: 0,
+        throttle: 1, fanSpeed: def.hybrid ? 0 : 0.5, fanOn: false, airTemp: this.ambient, speed: 0, G: def.G0, heatOut: 0,
       };
     }
 
-    for (const part of PARTS) {
+    for (const part of [...PARTS, ...this.gpu.parts, ...this.psu.parts]) {
       const [i0, i1] = this.range(part.min[0], part.max[0], nx);
       const [j0, j1] = this.range(part.min[1], part.max[1], ny);
       const [k0, k1] = this.range(part.min[2], part.max[2], nz);
@@ -72,7 +94,10 @@ export class Simulation {
         const c = g.ci(i, j, k);
         if (part.kind === 'solid') {
           g.solid[c] = 1;
+        } else if (part.kind === 'fluid') {
+          g.solid[c] = 0;
         } else {
+          g.solid[c] = 0;
           g.dragX[c] = part.drag[0];
           g.dragY[c] = part.drag[1];
           g.dragZ[c] = part.drag[2];
@@ -171,26 +196,30 @@ export class Simulation {
       if (lo < 0 || hi < 0) return;
       K[f] = FIXED; C[f] = 0; F[f] = 0;
     };
-    for (const pl of PLATES) {
+    for (const pl of [...PLATES, ...this.gpu.plates, ...this.psu.plates]) {
       const plane = Math.round(pl.at / h);
       this.forPlaneFaces(pl.axis, plane,
         (a, b) => a >= pl.min[0] && a <= pl.max[0] && b >= pl.min[1] && b <= pl.max[1],
         block(pl.axis));
     }
 
-    const makeVent = (axis, k) => (f, lo, hi) => {
+    this.gpuVentFaces = new Set();
+    this.psuFaces = new Set();
+    const makeVent = (axis, k, tag) => (f, lo, hi) => {
       const cell = lo >= 0 ? lo : hi;
       if (cell < 0 || g.solid[cell]) return;
       const { K, C, F } = g.faceArrays(axis);
       K[f] = VENT; C[f] = alpha(k); F[f] = 0;
+      if (tag === 'gpu') this.gpuVentFaces.add(axis * 1e7 + f);
+      if (tag === 'psu') this.psuFaces.add(axis * 1e7 + f);
     };
 
-    for (const v of FIXED_VENTS) {
+    for (const v of [...FIXED_VENTS, ...this.gpu.vents, ...this.psu.vents]) {
       const { axis, side } = FACES[v.face];
       const plane = side ? this.dims()[axis] : 0;
       this.forPlaneFaces(axis, plane,
         (a, b) => a >= v.min[0] && a <= v.max[0] && b >= v.min[1] && b <= v.max[1],
-        makeVent(axis, v.k));
+        makeVent(axis, v.k, v.tag));
     }
 
     for (const slot of SLOTS) {
@@ -217,11 +246,11 @@ export class Simulation {
       }
     }
 
-    for (const f of INTERNAL_FANS) {
+    for (const f of [...INTERNAL_FANS, ...this.gpu.fans, ...this.psu.fans]) {
       this.addFan({
         id: f.id, kind: 'internal', group: f.group, axis: f.axis,
         plane: Math.round(f.at / h), dir: f.dir, ca: f.c[0], cb: f.c[1],
-        radius: f.radius, hub: f.hub, qMax: f.qMax, pMax: f.pMax,
+        radius: f.radius, hub: f.hub, qMax: f.qMax, pMax: f.pMax, tag: f.tag,
       }, old);
     }
 
@@ -250,6 +279,7 @@ export class Simulation {
     if (!faces.length) return;
     const { K, C } = g.faceArrays(spec.axis);
     for (const f of faces) { K[f] = FIXED; C[f] = 0; }
+    if (spec.tag === 'psu') for (const f of faces) this.psuFaces.add(spec.axis * 1e7 + f);
     this.fans.push({
       ...spec,
       faces: Int32Array.from(faces),
@@ -317,6 +347,14 @@ export class Simulation {
 
   updateCoolerFans() {
     for (const grp of Object.values(this.groups)) {
+      if (grp.def.hybrid) {
+        // Fanless until warm, with hysteresis, then ramps with temperature.
+        if (grp.fanOn && grp.die < 45) grp.fanOn = false;
+        else if (!grp.fanOn && grp.die > 55) grp.fanOn = true;
+        const t = grp.fanOn ? Math.min(1, Math.max(0.3, 0.3 + ((grp.die - 50) / 30) * 0.7)) : 0;
+        grp.fanSpeed += (t - grp.fanSpeed) * 0.02;
+        continue;
+      }
       const target = this.coolerAuto[grp.id] ? fanCurve(grp.die) : this.coolerManual[grp.id];
       grp.fanSpeed += (target - grp.fanSpeed) * 0.02;
     }
@@ -358,7 +396,18 @@ export class Simulation {
         qTotal += dT;
       }
       qTotal *= cAir / dt; // W into the air
-      const power = this.power[grp.id] * grp.throttle;
+      let power;
+      if (grp.def.hybrid) {
+        // PSU loss from the DC load it is delivering this step.
+        const cpu = this.groups.cpu, gpu = this.groups.gpu;
+        const load = this.power.cpu * cpu.throttle + this.power.gpu * gpu.throttle + PSU.baseLoad;
+        const eff = psuEfficiency(load / PSU.rating);
+        this.psuLoad = load;
+        this.psuEff = eff;
+        power = load * (1 / eff - 1);
+      } else {
+        power = this.power[grp.id] * grp.throttle;
+      }
       grp.heatOut = qTotal;
       grp.power = power;
       grp.sink += ((power - qTotal) * dt) / def.cap;
@@ -377,7 +426,7 @@ export class Simulation {
     const g = this.grid;
     const b = this.boundary;
     const h2 = this.h * this.h;
-    let fanIn = 0, fanOut = 0, ventIn = 0, ventOut = 0, outT = 0;
+    let fanIn = 0, fanOut = 0, ventIn = 0, ventOut = 0, gpuOut = 0, psuIn = 0, psuOut = 0, outT = 0;
     for (let n = 0; n < b.length; n += 4) {
       const axis = b[n];
       const f = b[n + 1];
@@ -388,10 +437,16 @@ export class Simulation {
       if (kind === FREE) continue;
       const q = vel[f] * sign * h2; // inward flux
       if (q === 0) continue;
+      if (this.psuFaces.has(axis * 1e7 + f)) {
+        if (q > 0) psuIn += q; else psuOut -= q;
+        continue;
+      }
       const isVent = kind === VENT;
       if (q > 0) { if (isVent) ventIn += q; else fanIn += q; }
       else {
-        if (isVent) ventOut -= q; else fanOut -= q;
+        if (!isVent) fanOut -= q;
+        else if (this.gpuVentFaces.has(axis * 1e7 + f)) gpuOut -= q;
+        else ventOut -= q;
         outT += -q * g.T[cell];
       }
     }
@@ -403,9 +458,10 @@ export class Simulation {
       if (g.T[c] > tMax) tMax = g.T[c];
       nFluid++;
     }
-    const totalOut = fanOut + ventOut;
+    const totalOut = fanOut + ventOut + gpuOut;
     return {
-      fanIn, fanOut, ventIn, ventOut,
+      fanIn, fanOut, ventIn, ventOut, gpuOut, psuIn, psuOut, gpuType: this.gpuType,
+      psuMode: this.psuMode, psuLoad: this.psuLoad, psuEff: this.psuEff ?? 0.9,
       totalIn: fanIn + ventIn,
       totalOut,
       pressure: (pSum / nFluid) * this.pScale,

@@ -13,7 +13,7 @@ function geometry() {
   const g = sim.grid;
   return {
     type: 'geometry',
-    nx: g.nx, ny: g.ny, nz: g.nz, h: sim.h, dt: sim.dt, pScale: sim.pScale,
+    nx: g.nx, ny: g.ny, nz: g.nz, h: sim.h, dt: sim.dt, pScale: sim.pScale, gpuType: sim.gpuType, psuMode: sim.psuMode,
     solid: g.solid.slice(),
     porous: Uint8Array.from(g.dragY, (d, c) => (d > 0 || g.dragZ[c] > 0 ? 1 : 0)),
     fans: sim.fans.map((f) => ({ id: f.id, kind: f.kind, mode: f.mode, axis: f.axis, dir: f.dir })),
@@ -74,6 +74,18 @@ onmessage = (e) => {
       break;
     case 'config':
       applyConfig(m.config);
+      break;
+    case 'gpu':
+      sim.setGpu(m.gpuType);
+      applyConfig(m.config || {});
+      postMessage(geometry());
+      snapshot(true);
+      break;
+    case 'psu':
+      sim.setPsuMode(m.psuMode);
+      applyConfig(m.config || {});
+      postMessage(geometry());
+      snapshot(true);
       break;
     case 'modes':
       sim.setModes(m.modes);

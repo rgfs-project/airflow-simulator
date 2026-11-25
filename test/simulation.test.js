@@ -45,7 +45,7 @@ test('heat leaving with the exhaust air matches the component power', () => {
     const q = vel[b[n + 1]] * b[n + 2] * sim.h * sim.h;
     if (q < 0) out += -q * RHO_CP * (g.T[b[n + 3]] - sim.ambient);
   }
-  const power = sim.groups.cpu.power + sim.groups.gpu.power;
+  const power = sim.groups.cpu.power + sim.groups.gpu.power + sim.groups.psu.power;
   // Panels also leak a little heat, so the exhaust carries slightly less.
   assert.ok(out > power * 0.8 && out < power * 1.05, `exhaust carries ${out.toFixed(0)} W of ${power} W`);
 });
@@ -63,4 +63,26 @@ test('good airflow keeps components cooler than no case fans', () => {
   assert.ok(good.groups.cpu.die < bad.groups.cpu.die, 'CPU');
   assert.ok(good.groups.gpu.die < bad.groups.gpu.die, 'GPU');
   assert.ok(good.airTemp < bad.airTemp, 'case air');
+});
+
+test('a blower GPU exhausts its heat out of the rear bracket', () => {
+  const blower = run(PRESETS.balanced.modes, 900, { gpuType: 'blower' });
+  const open = run(PRESETS.balanced.modes, 900, { gpuType: 'openair' });
+  const b = blower.stats();
+  assert.ok(b.gpuOut * CFM_PER_M3S > 8, `bracket flow ${(b.gpuOut * CFM_PER_M3S).toFixed(1)} CFM`);
+  assert.equal(open.stats().gpuOut, 0);
+  assert.ok(b.airTemp < open.stats().airTemp, 'blower keeps the case air cooler');
+});
+
+test('PSU fan up draws case air; fan down breathes from the floor', () => {
+  const hot = (sim) => { sim.groups.psu.sink = 70; sim.groups.psu.die = 70; return sim; };
+  const down = hot(new Simulation({ resolution: 'low', modes: PRESETS.balanced.modes, psuMode: 'down' }));
+  const up = hot(new Simulation({ resolution: 'low', modes: PRESETS.balanced.modes, psuMode: 'up' }));
+  for (let i = 0; i < 500; i++) { down.step(); up.step(); }
+  const d = down.stats();
+  const u = up.stats();
+  assert.ok(d.psuIn > 0.002 && Math.abs(d.psuIn - d.psuOut) / d.psuOut < 0.05, `down: in ${d.psuIn} out ${d.psuOut}`);
+  assert.ok(u.psuOut > 0.002 && u.psuIn < u.psuOut * 0.05, `up: in ${u.psuIn} out ${u.psuOut}`);
+  const lossW = up.groups.psu.power;
+  assert.ok(lossW > 20 && lossW < 60, `PSU loss ${lossW.toFixed(1)} W at ~510 W load`);
 });
