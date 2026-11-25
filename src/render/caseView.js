@@ -358,10 +358,10 @@ export class CaseView {
     this.hitTargets = [];
     this.panelMeshes = [];
     this.grillTex = grillTexture();
-    this.tagged('context', () => this.buildShell());
+    this.buildShell();
     this.buildParts();
-    this.tagged('context', () => this.buildSlots());
-    this.tagged('main', () => this.buildInternalFans());
+    this.buildSlots();
+    this.buildInternalFans();
     this.applyClayStyle();
   }
 
@@ -376,7 +376,6 @@ export class CaseView {
     const [W, H, D] = this.dims;
     // Anodised aluminium frame along the 12 edges, plus rubber feet.
     const alu = new THREE.MeshStandardMaterial({ color: 0x2b2e35, roughness: 0.32, metalness: 0.85 });
-    alu.userData.anchor = true;
     const t = 0.008;
     const bar = (sx, sy, sz, x, y, z) => {
       const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), alu);
@@ -448,7 +447,6 @@ export class CaseView {
       sh.holes.push(hole);
       const border = new THREE.Mesh(planeShapeGeometry(sh, 0, -0.0012, 1),
         new THREE.MeshStandardMaterial({ color: 0x050506, roughness: 0.25, metalness: 0.2, side: THREE.DoubleSide }));
-      border.material.userData.anchor = true;
       this.group.add(border);
       this.panelMeshes.push(border);
     }
@@ -491,8 +489,7 @@ export class CaseView {
     const W = this.dims[0];
 
     // PSU shroud with a lighter top edge.
-    this.tagged('context', () => this.buildShroudAndPsu());
-    let mark = this.group.children.length;
+    this.buildShroudAndPsu();
     // Motherboard and details.
     const mb = partBox('motherboard');
     g.add(boxMesh(mb.min, mb.max, pcb));
@@ -510,8 +507,6 @@ export class CaseView {
     const m2 = new THREE.MeshStandardMaterial({ color: 0x3a3e46, roughness: 0.35, metalness: 0.85 });
     g.add(boxMesh([W - 0.016, 0.262, 0.035], [W - 0.01, 0.278, 0.13], m2));
 
-    this.tagFrom(mark, 'board');
-    mark = this.group.children.length;
     // CPU: single-tower cooler, all black, 158 x 125 x 112 mm.
     const C = CPU_COOLER;
     const blackNickel = new THREE.MeshStandardMaterial({ color: 0x1b1c1f, roughness: 0.42, metalness: 0.75 });
@@ -591,11 +586,8 @@ export class CaseView {
       g.add(boxMesh([rx0 + 0.013, yc - 0.0025, z - 0.0007], [rx0 + 0.017, yc + 0.003, z], chipMat));
     }
 
-    this.tagFrom(mark, 'main');
-    mark = this.group.children.length;
     if (this.gpuType === 'blower') this.buildBlowerGpu();
     else this.buildOpenAirGpu();
-    this.tagFrom(mark, 'main');
   }
 
   /**
@@ -834,7 +826,6 @@ export class CaseView {
       this.group.add(root);
 
       const fan = makeFan({ size: slot.size, radius: CASE_FAN.radius, hub: CASE_FAN.hub });
-      fan.group.traverse((o) => { o.userData.role = 'fan'; });
       fan.group.position.copy(outward).multiplyScalar(-0.0135);
       root.add(fan.group);
 
@@ -916,78 +907,46 @@ export class CaseView {
       else pos[f.axis] = f.at + f.dir * (isCpu ? 0.0128 : 0.0065) * (f.pull ? 1 : -1);
       fan.group.position.set(...pos);
       this.group.add(fan.group);
-      if (f.visual === 'psu') fan.group.traverse((o) => { o.userData.role = 'context'; });
       this.internalFans.push({ def: f, ...fan });
     }
   }
 
-  /** Run a build step and give everything it added a visual role (unless already set). */
-  tagged(role, fn) {
-    const mark = this.group.children.length;
-    fn();
-    this.tagFrom(mark, role);
-  }
-
-  tagFrom(mark, role) {
-    for (let i = mark; i < this.group.children.length; i++) {
-      this.group.children[i].traverse((o) => { o.userData.role ??= role; });
-    }
-  }
-
   /**
-   * Visualisation style, like a driving visualisation: matte clay greys that
-   * encode importance. The parts that make heat (CPU cooler, GPU, RAM) are dark
-   * grey, the motherboard mid grey, case fans a lighter grey, and the case and
-   * PSU near-white so they recede. Colour is reserved for data: airflow streaks,
-   * fan direction rings/arrows (unlit) and the heat glow on hot heatsinks.
+   * Visualisation style: every part becomes a smooth matte "clay" grey, keeping
+   * a little of its original lightness so parts stay distinguishable. Colour is
+   * left only on data: fan direction rings/arrows (unlit materials) and the
+   * heat glow on hot heatsinks (emissive, set in update()).
    */
   applyClayStyle() {
-    const TONE = {
-      main: [0.085, 0.14],   // base, spread across the original lightness
-      fan: [0.4, 0.16],
-      board: [0.6, 0.15],
-      context: [0.9, 0.07],
-    };
-    // Which roles use each material: shared materials get one copy per role.
-    const uses = new Map();
+    const seen = new Set();
+    const hsl = {};
     this.group.traverse((o) => {
-      if (!o.isMesh || !o.material?.isMeshStandardMaterial) return;
-      const role = o.userData.role || 'context';
-      if (!uses.has(o.material)) uses.set(o.material, new Set());
-      uses.get(o.material).add(role);
-    });
-    const styled = new Map();
-    const style = (src, role) => {
-      const key = `${src.uuid}:${role}`;
-      if (styled.has(key)) return styled.get(key);
-      const m = uses.get(src).size > 1 ? src.clone() : src;
-      const hsl = {};
-      src.color.getHSL(hsl);
-      const glass = m.transparent && m.opacity < 0.12;
-      const panel = m.transparent && !m.map && m.opacity >= 0.12 && m.opacity < 0.6;
-      if (panel) {
-        m.color.setRGB(0.97, 0.97, 0.975);
-        m.opacity = 0.22;
-      } else if (glass) {
-        m.color.setRGB(0.95, 0.96, 0.97);
-        m.envMapIntensity = 1.2;
-      } else {
-        let [base, spread] = TONE[role] || TONE.context;
-        if (m.userData.anchor) { base = 0.78; spread = 0; } // case frame: a touch darker than the panels
-        const g = base + spread * Math.pow(hsl.l, 0.8);
-        m.color.setRGB(g * 0.975, g * 0.985, g);
-        m.metalness = Math.min(m.metalness, 0.1);
-        m.roughness = Math.max(0.55, Math.min(0.75, m.roughness + 0.25));
-        m.envMapIntensity = 0.6;
+      if (!o.isMesh) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (const m of mats) {
+        if (!m || seen.has(m) || !m.isMeshStandardMaterial) continue;
+        seen.add(m);
+        m.color.getHSL(hsl);
+        const glass = m.transparent && m.opacity < 0.12;
+        const smoked = m.transparent && !m.map && m.opacity >= 0.12 && m.opacity < 0.6;
+        if (smoked) {
+          // Translucent case panels: smoked charcoal so the interior stays readable.
+          m.color.setRGB(0.1, 0.105, 0.115);
+          m.opacity = 0.3;
+          m.needsUpdate = true;
+          continue;
+        }
+        const g = glass ? 0.92 : 0.4 + 0.42 * Math.pow(hsl.l, 0.8);
+        m.color.setRGB(g * 0.965, g * 0.98, g);
+        if (!glass) {
+          m.metalness = Math.min(m.metalness, 0.12);
+          m.roughness = Math.max(0.5, Math.min(0.7, m.roughness + 0.2));
+        }
+        // Keep the LED strips from glowing purple; heat glow is re-applied each frame.
+        if (m !== this.cpuFinMat && m !== this.gpuFinMat) m.emissive?.setRGB(0, 0, 0);
+        m.envMapIntensity = glass ? 1.2 : 0.7;
+        m.needsUpdate = true;
       }
-      if (m !== this.cpuFinMat && m !== this.gpuFinMat) m.emissive?.setRGB(0, 0, 0);
-      m.needsUpdate = true;
-      styled.set(key, m);
-      return m;
-    };
-    this.group.traverse((o) => {
-      if (!o.isMesh || !o.material?.isMeshStandardMaterial) return;
-      o.material = style(o.material, o.userData.role || 'context');
     });
   }
 

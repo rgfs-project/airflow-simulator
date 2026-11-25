@@ -8,6 +8,7 @@ let last = 0;
 let debt = 0;
 let snapshots = 0;
 let stepMs = 5;
+let lowPower = false;
 
 function geometry() {
   const g = sim.grid;
@@ -47,7 +48,7 @@ function loop() {
   last = now;
   if (sim && !paused) {
     debt += wall * timeScale;
-    const maxSteps = 6;
+    const maxSteps = lowPower ? 3 : 6;
     let steps = 0;
     const t0 = performance.now();
     while (debt >= sim.dt && steps < maxSteps) {
@@ -66,12 +67,21 @@ function loop() {
 onmessage = (e) => {
   const m = e.data;
   switch (m.type) {
-    case 'init':
+    case 'init': {
       sim = new Simulation(m.options);
       applyConfig(m.config || {});
       postMessage(geometry());
+      // Grace period: run ahead (up to a time budget) so the first frame shows
+      // established airflow instead of still air spinning up.
+      const t0 = performance.now();
+      const budget = m.warmupMs ?? 1000;
+      const target = m.warmupSim ?? 1.5;
+      while (sim.time < target && performance.now() - t0 < budget) sim.step();
+      last = performance.now();
+      debt = 0;
       snapshot(true);
       break;
+    }
     case 'config':
       applyConfig(m.config);
       break;
@@ -105,6 +115,7 @@ onmessage = (e) => {
 function applyConfig(c) {
   if (c.timeScale !== undefined) timeScale = c.timeScale;
   if (c.paused !== undefined) paused = c.paused;
+  if (c.lowPower !== undefined) lowPower = c.lowPower;
   if (!sim) return;
   if (c.caseFanSpeed !== undefined) sim.caseFanSpeed = c.caseFanSpeed;
   if (c.ambient !== undefined) sim.ambient = c.ambient;

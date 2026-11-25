@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { FluidGrid } from './sim/fluid.js';
-import { PRESETS, SLOTS, SLOT_MODES, CFM_PER_M3S, GPUS, DEFAULT_GPU, CASE } from './sim/model.js';
+import { PRESETS, SLOTS, SLOT_MODES, CFM_PER_M3S, GPUS, DEFAULT_GPU } from './sim/model.js';
 import { CaseView } from './render/caseView.js';
 import { Particles } from './render/particles.js';
 import { Slice } from './render/slice.js';
@@ -14,7 +14,8 @@ import './style.css';
 // ---------------------------------------------------------------------------
 const MOBILE = matchMedia('(max-width: 900px)').matches || matchMedia('(pointer: coarse)').matches;
 const quality = {
-  pixelRatio: Math.min(window.devicePixelRatio, MOBILE ? 1.5 : 2),
+  pixelRatio: Math.min(window.devicePixelRatio, MOBILE ? 1.25 : 2),
+  maxFps: MOBILE ? 30 : 0, // phones: cap rendering to save CPU, GPU and battery
   shadows: !MOBILE,
   trail: MOBILE ? 10 : 14,
 };
@@ -38,7 +39,7 @@ const state = {
   resolution: MOBILE ? 'low' : 'medium',
   view: {
     particles: true,
-    count: MOBILE ? 1500 : 3500,
+    count: MOBILE ? 1200 : 3500,
     color: 'temperature',
     seedMix: 0.15,
     slice: false,
@@ -46,7 +47,6 @@ const state = {
     sliceAxis: 0,
     slicePos: 0.55,
     panels: true,
-    dims: !MOBILE,
   },
 };
 
@@ -57,7 +57,7 @@ const viewport = document.getElementById('viewport');
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(quality.pixelRatio);
 renderer.toneMapping = THREE.NeutralToneMapping;
-renderer.toneMappingExposure = 1.0;
+renderer.toneMappingExposure = 0.95;
 renderer.shadowMap.enabled = quality.shadows;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 viewport.prepend(renderer.domElement);
@@ -80,8 +80,8 @@ let cameraTouched = false;
 controls.addEventListener('start', () => { cameraTouched = true; });
 
 // Studio lighting: soft sky, a shadow-casting key, a cool rim and a warm fill.
-scene.add(new THREE.HemisphereLight(0xffffff, 0xdedfe3, 0.85));
-const key = new THREE.DirectionalLight(0xffffff, 1.0);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x1a1b1e, 0.55));
+const key = new THREE.DirectionalLight(0xffffff, 1.35);
 key.position.set(-0.9, 1.6, 1.1);
 key.castShadow = quality.shadows;
 key.shadow.mapSize.set(2048, 2048);
@@ -90,9 +90,9 @@ key.shadow.camera.top = 0.45; key.shadow.camera.bottom = -0.45;
 key.shadow.camera.near = 0.5; key.shadow.camera.far = 4;
 key.shadow.bias = -0.0004;
 key.shadow.normalBias = 0.0015;
-key.shadow.radius = 9;
+key.shadow.radius = 4;
 scene.add(key);
-const rim = new THREE.DirectionalLight(0xffffff, 0.45);
+const rim = new THREE.DirectionalLight(0xdfe8ff, 0.7);
 rim.position.set(0.9, 0.7, -1.2);
 scene.add(rim);
 const fill = new THREE.DirectionalLight(0xffffff, 0.3);
@@ -106,7 +106,6 @@ scene.add(floor);
 
 let caseView = null;
 const particles = new Particles(12000, quality.trail);
-particles.colorScale = 0.8;
 const slice = new Slice();
 let field = null;
 let geometry = null;
@@ -115,25 +114,47 @@ let stepMs = 0;
 const offset = { left: 0, bottom: 0 }; // px of the viewport covered by cards
 let caseSize = [0.21, 0.46, 0.44];
 
-/** Floor: no visible ground, just a soft contact shadow that fades into the white backdrop. */
+/** Dark studio floor: a faint grid that fades out radially, plus shadow catcher. */
 function makeFloor() {
   const g = new THREE.Group();
-  const n = 512;
+  const n = 1024;
   const cv = document.createElement('canvas');
   cv.width = cv.height = n;
   const ctx = cv.getContext('2d');
-  const grad = ctx.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
-  grad.addColorStop(0, 'rgba(0,0,0,0.22)');
-  grad.addColorStop(0.45, 'rgba(0,0,0,0.1)');
-  grad.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = grad;
+  // Soft pool of light under the case, with a barely-there grid fading out.
+  const pool = ctx.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
+  pool.addColorStop(0, 'rgba(255,255,255,0.16)');
+  pool.addColorStop(0.35, 'rgba(255,255,255,0.06)');
+  pool.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = pool;
   ctx.fillRect(0, 0, n, n);
-  const blob = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.8),
-    new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false, toneMapped: false }));
-  blob.rotation.x = -Math.PI / 2;
-  g.add(blob);
+  const step = n / 48;
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+  ctx.lineWidth = 1.2;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(n / 2, n / 2, n * 0.42, 0, Math.PI * 2);
+  ctx.clip();
+  for (let i = 0; i <= 48; i++) {
+    ctx.beginPath(); ctx.moveTo(i * step, 0); ctx.lineTo(i * step, n); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i * step); ctx.lineTo(n, i * step); ctx.stroke();
+  }
+  ctx.restore();
+  ctx.globalCompositeOperation = 'destination-in';
+  const fade = ctx.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
+  fade.addColorStop(0, 'rgba(0,0,0,1)');
+  fade.addColorStop(0.6, 'rgba(0,0,0,0.5)');
+  fade.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = fade;
+  ctx.fillRect(0, 0, n, n);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.anisotropy = 8;
+  const gridMesh = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+  gridMesh.rotation.x = -Math.PI / 2;
+  g.add(gridMesh);
   if (quality.shadows) {
-    const catcher = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), new THREE.ShadowMaterial({ opacity: 0.12 }));
+    const catcher = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), new THREE.ShadowMaterial({ opacity: 0.5 }));
     catcher.rotation.x = -Math.PI / 2;
     catcher.position.y = 0.0005;
     catcher.receiveShadow = true;
@@ -147,8 +168,8 @@ function frameCamera() {
   const w = Math.max(1, viewport.clientWidth - offset.left);
   const h = Math.max(1, viewport.clientHeight - offset.bottom);
   const aspect = w / h;
-  const fitH = caseSize[1] * 1.5;
-  const fitW = Math.hypot(caseSize[0], caseSize[2]) * 1.35;
+  const fitH = caseSize[1] * 1.3;
+  const fitW = Math.hypot(caseSize[0], caseSize[2]) * 1.2;
   const vfov = THREE.MathUtils.degToRad(camera.fov);
   const dist = Math.max(fitH / 2 / Math.tan(vfov / 2), fitW / 2 / (Math.tan(vfov / 2) * aspect));
   camera.position.copy(controls.target).addScaledVector(HOME_DIR, Math.min(2.6, dist));
@@ -184,6 +205,7 @@ function workerConfig() {
     coolerAuto: { cpu: state.coolerAuto, gpu: state.coolerAuto },
     coolerManual: { cpu: state.coolerManual, gpu: state.coolerManual },
     buoyancy: state.buoyancy,
+    lowPower: MOBILE,
   };
 }
 
@@ -195,7 +217,10 @@ function startWorker() {
     type: 'init',
     options: { resolution: state.resolution, gpuType: state.gpuType, psuMode: state.psuMode, modes: state.modes, caseFanSpeed: state.caseFanSpeed, ambient: state.ambient, power: state.power },
     config: workerConfig(),
+    warmupMs: MOBILE ? 1400 : 900,
+    warmupSim: 1.5,
   });
+  warmedAt = 0;
 }
 
 function onWorkerMessage(e) {
@@ -213,61 +238,11 @@ function onWorkerMessage(e) {
       slice.configure({ axis: state.view.sliceAxis, frac: state.view.slicePos, mode: state.view.sliceField });
     }
   } else if (m.type === 'snapshot' && field) {
+    if (!warmedAt) warmedAt = performance.now();
     field.u = m.u; field.v = m.v; field.w = m.w; field.T = m.T; field.p = m.p;
     summary = { ...m.summary, time: m.time };
     stepMs = m.stepMs;
     if (m.sources) particles.setSources(m.sources);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Dimension callouts (lines in 3D, labels as HTML that follow the camera)
-// ---------------------------------------------------------------------------
-const dimsEl = document.getElementById('dims');
-let dimsGroup = null;
-let dimLabels = [];
-function buildDims(size) {
-  if (dimsGroup) root.remove(dimsGroup);
-  dimsEl.replaceChildren();
-  dimLabels = [];
-  const [W, H, D] = size;
-  const off = 0.04, y0 = -0.016, tick = 0.012, gap = 0.032;
-  const pts = [];
-  const V = (x, y, z) => new THREE.Vector3(x, y, z);
-  const add = (a, b, tickDir, text) => {
-    const mid = a.clone().lerp(b, 0.5);
-    const dir = b.clone().sub(a).normalize();
-    pts.push(a, mid.clone().addScaledVector(dir, -gap), mid.clone().addScaledVector(dir, gap), b);
-    for (const p of [a, b]) pts.push(p.clone().addScaledVector(tickDir, -tick), p.clone().addScaledVector(tickDir, tick));
-    const node = document.createElement('div');
-    node.className = 'dimlabel';
-    node.textContent = text;
-    dimsEl.append(node);
-    dimLabels.push({ pos: mid, node });
-  };
-  const mmTxt = (m) => `${Math.round(m * 1000)} mm`;
-  add(V(0, y0, D + off), V(W, y0, D + off), V(0, 0, 1), mmTxt(CASE.W));
-  add(V(W + off, y0, 0), V(W + off, y0, D), V(1, 0, 0), mmTxt(CASE.D));
-  add(V(-off, 0, -0.004), V(-off, H, -0.004), V(1, 0, 0), mmTxt(CASE.H));
-  dimsGroup = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts),
-    new THREE.LineBasicMaterial({ color: 0x8e8e93, transparent: true, opacity: 0.9 }));
-  root.add(dimsGroup);
-  applyDimsVisibility();
-}
-function applyDimsVisibility() {
-  const on = !!state.view.dims;
-  if (dimsGroup) dimsGroup.visible = on;
-  dimsEl.hidden = !on;
-}
-const _v = new THREE.Vector3();
-function updateDimLabels() {
-  if (!state.view.dims || !dimLabels.length) return;
-  const w = viewport.clientWidth, h = viewport.clientHeight;
-  for (const { pos, node } of dimLabels) {
-    _v.copy(pos).add(root.position).project(camera);
-    const visible = _v.z < 1;
-    node.style.display = visible ? '' : 'none';
-    if (visible) node.style.transform = `translate(${((_v.x + 1) / 2) * w}px, ${((1 - _v.y) / 2) * h}px) translate(-50%, -50%)`;
   }
 }
 
@@ -282,7 +257,6 @@ function buildCase(dims, gpuType, psuMode) {
   root.position.set(-dims[0] / 2, -dims[1] / 2, -dims[2] / 2);
   floor.position.y = -dims[1] / 2 - 0.016;
   caseSize = dims;
-  buildDims(dims);
   if (quality.shadows) {
     caseView.group.traverse((o) => {
       if (!o.isMesh) return;
@@ -366,7 +340,7 @@ ui.setModes(state.modes);
 function togglePause() {
   state.paused = !state.paused;
   ui.setPaused(state.paused);
-  worker?.postMessage({ type: 'config', config: { paused: state.paused } });
+  syncRunning();
 }
 
 function applyView() {
@@ -378,7 +352,6 @@ function applyView() {
   slice.group.visible = v.slice;
   slice.configure({ axis: v.sliceAxis, frac: v.slicePos, mode: v.sliceField });
   caseView?.setPanelsVisible(v.panels);
-  applyDimsVisibility();
   ui.updateLegend(v);
 }
 
@@ -446,11 +419,15 @@ let frame = 0;
 let fps = 60;
 let slowFor = 0;
 let qualityStep = 0;
+let warmedAt = 0;
+let stageVisible = true;
+let lastRender = 0;
 
 /** Step quality down if the device cannot keep up (fewer streaks, then lower resolution). */
-function adaptQuality(dt) {
-  if (frame < 120 || qualityStep >= 3) return;
-  slowFor = fps < 28 ? slowFor + dt : Math.max(0, slowFor - dt * 2);
+function adaptQuality(dt, now) {
+  // Grace period: judge frame rate only once the simulation is running and has had a few seconds.
+  if (!warmedAt || now - warmedAt < 4000 || qualityStep >= 3) return;
+  slowFor = fps < (quality.maxFps ? 22 : 28) ? slowFor + dt : Math.max(0, slowFor - dt * 2);
   if (slowFor < 2.5) return;
   slowFor = 0;
   qualityStep++;
@@ -466,16 +443,25 @@ function adaptQuality(dt) {
 }
 
 // Save battery: stop simulating while the tab is hidden.
-document.addEventListener('visibilitychange', () => {
-  worker?.postMessage({ type: 'config', config: { paused: document.hidden || state.paused } });
-});
+function syncRunning() {
+  worker?.postMessage({ type: 'config', config: { paused: document.hidden || !stageVisible || state.paused } });
+}
+document.addEventListener('visibilitychange', syncRunning);
+// Stop simulating and rendering while the 3D view is scrolled off screen (phones scroll the page).
+new IntersectionObserver(([entry]) => {
+  stageVisible = entry.isIntersecting;
+  syncRunning();
+}, { threshold: 0.05 }).observe(document.getElementById('stage'));
 
 function animate(timestamp) {
   requestAnimationFrame(animate);
+  if (!stageVisible || document.hidden) return;
+  if (quality.maxFps && timestamp - lastRender < 1000 / quality.maxFps - 2) return;
+  lastRender = timestamp;
   timer.update(timestamp);
   const dt = Math.min(0.05, timer.getDelta());
-  fps = fps * 0.95 + (1 / Math.max(dt, 1e-3)) * 0.05;
-  adaptQuality(dt);
+  fps = fps * 0.9 + (1 / Math.max(dt, 1e-3)) * 0.1;
+  adaptQuality(dt, timestamp);
   controls.update();
   if (field && summary) {
     const simDt = state.paused ? 0 : dt * state.timeScale;
@@ -489,7 +475,6 @@ function animate(timestamp) {
       });
     }
   }
-  updateDimLabels();
   frame++;
   renderer.render(scene, camera);
 }
