@@ -28,7 +28,7 @@ npm test           # physics sanity tests (Node 20+)
 | Case | Original minimal ATX airflow case, 210 x 460 x 440 mm inside. Perforated front and top, glass side. Fan mounts: 3 x 140 mm front, 2 x 140 mm top, 1 x 140 mm rear, 1 x 140 mm bottom. |
 | Case fans | 140 x 140 x 25 mm: 155.6 m³/h (92 CFM) and 2.56 mm H₂O at 1500 rpm. Used in every slot. |
 | CPU cooler | Single tower, 158 x 125 x 112 mm, seven heatpipes. Fins are parallel to the motherboard, with two 120 mm fans in push-pull (102.1 m³/h, 2.34 mm H₂O each at 2000 rpm). |
-| Graphics card | Choice of: **workstation flow-through** (default; 305 x 137 mm dual-slot, 600 W: two axial fans push air up through fin stacks at each end, around a solid centre body; four DisplayPort outputs; fan airflow is estimated because it isn't published), **workstation blower** (267 x 111 x 40 mm dual-slot, 300 W: one radial blower pulls air in through both faces and blows it through an enclosed fin stack and out of the slotted bracket), or **open-air** 3-fan gaming card (dumps heat into the case). |
+| Graphics card | Workstation blower: 267 x 111 x 40 mm dual-slot, 300 W. One radial blower pulls air in through both faces and blows it through an enclosed fin stack and out of the slotted bracket. |
 | RAM | Four bare DDR5 DIMMs, 133.35 x 31.25 mm. |
 | PSU | 1600 W ATX unit, 150 x 86 x 210 mm, 135 mm hybrid fan (off until warm), Titanium-class efficiency curve. Fan down (fresh air from the floor, its own airflow path) or fan up (draws case air and works as an extra exhaust). |
 

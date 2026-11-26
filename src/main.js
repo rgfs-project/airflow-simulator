@@ -322,10 +322,6 @@ const ui = buildUI(
       state.psuMode = mode;
       worker?.postMessage({ type: 'psu', psuMode: mode, config: workerConfig() });
     },
-    onGpu: (type) => {
-      state.gpuType = type;
-      worker?.postMessage({ type: 'gpu', gpuType: type, config: workerConfig() });
-    },
     onMode: (slotId, mode) => setModes({ [slotId]: mode }),
     onConfig: (patch) => {
       if (patch.caseFanSpeed !== undefined) state.caseFanSpeed = patch.caseFanSpeed;
@@ -485,32 +481,6 @@ new IntersectionObserver(([entry]) => {
   syncRunning();
 }, { threshold: 0.05 }).observe(document.getElementById('stage'));
 
-// The plane only shows when looking straight at a face (front, back, top,
-// bottom, left or right); it turns to face the camera and fades out at angles.
-const viewDir = new THREE.Vector3();
-const legendEl = document.getElementById('legend');
-function syncSlice() {
-  let t = 0;
-  if (state.view.slice && slice.mesh) {
-    viewDir.subVectors(camera.position, controls.target).normalize();
-    const a = [Math.abs(viewDir.x), Math.abs(viewDir.y), Math.abs(viewDir.z)];
-    const axis = a.indexOf(Math.max(...a));
-    t = THREE.MathUtils.smoothstep(a[axis], 0.94, 0.985);
-    if (t > 0.01 && axis !== slice.axis) {
-      state.view.sliceAxis = axis;
-      slice.configure({ axis });
-      slice.group.visible = true;
-      slice.update(state.ambient);
-    }
-  }
-  const shown = t > 0.01;
-  if (shown && !slice.group.visible) { slice.group.visible = true; slice.update(state.ambient); }
-  slice.group.visible = shown;
-  if (slice.mesh) slice.mesh.material.opacity = 0.88 * t;
-  legendEl.classList.toggle('plane-off', !shown);
-  return shown;
-}
-
 function animate(timestamp) {
   requestAnimationFrame(animate);
   if (!stageVisible || document.hidden) return;
@@ -525,7 +495,7 @@ function animate(timestamp) {
     const simDt = state.paused ? 0 : dt * state.timeScale;
     if (state.view.particles) particles.update(simDt, state.ambient);
     caseView.update(state.paused ? 0 : dt, summary, state.timeScale);
-    if (syncSlice() && frame % 4 === 0) slice.update(state.ambient);
+    if (state.view.slice && frame % 4 === 0) slice.update(state.ambient);
     if (frame % 10 === 0) {
       ui.updateStats(summary, {
         grid: `${geometry.nx}×${geometry.ny}×${geometry.nz}`, stepMs, fps,

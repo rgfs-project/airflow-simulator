@@ -1,4 +1,5 @@
-import { SLOTS, PRESETS, CFM_PER_M3S, GPUS, PSU_MODES, PSU, SLOT_MODES } from './sim/model.js';
+import { createElement, Fan, Play, Pause, SlidersHorizontal, Grid2x2, Plus, Minus, ArrowLeft, ArrowRight, X } from 'lucide';
+import { SLOTS, PRESETS, CFM_PER_M3S, PSU_MODES, PSU, SLOT_MODES } from './sim/model.js';
 import { cssGradient, heat, turbo, diverging, SOURCE_COLORS } from './render/colormap.js';
 
 // ---------------------------------------------------------------------------
@@ -18,20 +19,13 @@ function el(tag, attrs = {}, ...children) {
 }
 const setText = (node, text) => { if (node.textContent !== text) node.textContent = text; };
 
+// Lucide icons (vanilla build of the same set as lucide-react).
 const P = {
-  mark: '<circle cx="12" cy="12" r="1.6"/><path d="M12 10.4c-.6-3.2.6-6.4 3.4-6.4 2.4 0 2.6 3.6-1.8 6.6M13.6 12c3.2-.6 6.4.6 6.4 3.4 0 2.4-3.6 2.6-6.6-1.8M12 13.6c.6 3.2-.6 6.4-3.4 6.4-2.4 0-2.6-3.6 1.8-6.6M10.4 12c-3.2.6-6.4-.6-6.4-3.4 0-2.4 3.6-2.6 6.6 1.8"/>',
-  play: '<path d="M7 5v14l11-7z"/>',
-  pause: '<path d="M8 5v14M16 5v14"/>',
-  gear: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>',
-  home: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
-  flat: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 12h16M12 4v16" opacity=".55"/>',
-  plus: '<path d="M12 5v14M5 12h14"/>',
-  minus: '<path d="M5 12h14"/>',
-  left: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
-  right: '<path d="M5 12h14M13 6l6 6-6 6"/>',
-  close: '<path d="M6 6l12 12M18 6 6 18"/>',
+  mark: Fan, play: Play, pause: Pause, gear: SlidersHorizontal, flat: Grid2x2,
+  plus: Plus, minus: Minus, left: ArrowLeft, right: ArrowRight, close: X,
 };
-const icon = (name) => el('span', { class: 'ico', 'aria-hidden': 'true', html: `<svg viewBox="0 0 24 24">${P[name]}</svg>` });
+const svg = (name) => createElement(P[name], { 'stroke-width': 1.8 });
+const icon = (name) => el('span', { class: 'ico', 'aria-hidden': 'true' }, svg(name));
 const MODE_LABEL = { intake: 'In', exhaust: 'Out', open: 'Open', blocked: 'Shut' };
 const tempTone = (t, limit) => (t >= limit - 2 ? 'bad' : t >= limit - 18 ? 'warm' : '');
 
@@ -102,7 +96,7 @@ export function buildUI(state, h) {
   const playBtn = el('button', { type: 'button', class: 'btn primary', onclick: () => h.onPause() }, icon('pause'), el('span', {}, 'Pause'));
   document.getElementById('topbar').append(
     el('a', { class: 'wordmark', href: '#', 'aria-label': 'Airflow home', onclick: (e) => e.preventDefault() },
-      el('span', { class: 'mark', html: `<svg viewBox="0 0 24 24">${P.mark}</svg>` }), 'Airflow'),
+      el('span', { class: 'mark', 'aria-hidden': 'true' }, svg('mark')), 'Airflow'),
     el('div', { class: 'actions' },
       el('button', { type: 'button', class: 'btn soft icon', 'aria-label': 'Settings', title: 'Settings', onclick: () => openModal('settings') }, icon('gear')),
       playBtn),
@@ -218,12 +212,10 @@ export function buildUI(state, h) {
   side.append(card('Load & Hardware',
     slider({ label: 'Case Fans', min: 0, max: 1, step: 0.05, value: state.caseFanSpeed, fmt: (v) => `${Math.round(v * 100)}%`, onInput: (v) => h.onConfig({ caseFanSpeed: v }) }),
     slider({ label: 'CPU', min: 15, max: 300, step: 5, value: state.power.cpu, fmt: (v) => `${v} W`, onInput: (v) => h.onConfig({ power: { cpu: v } }) }),
-    slider({ label: 'GPU', min: 20, max: 650, step: 5, value: state.power.gpu, fmt: (v) => `${v} W`, onInput: (v) => h.onConfig({ power: { gpu: v } }) }),
+    slider({ label: 'GPU', min: 20, max: 500, step: 5, value: state.power.gpu, fmt: (v) => `${v} W`, onInput: (v) => h.onConfig({ power: { gpu: v } }) }),
     slider({ label: 'Ambient', min: 10, max: 40, step: 0.5, value: state.ambient, fmt: (v) => `${v.toFixed(1)}°C`, onInput: (v) => h.onConfig({ ambient: v }) }),
     toggle('Auto Cooler Fans', state.coolerAuto, (on) => { coolerSlider.hidden = on; h.onConfig({ coolerAuto: { cpu: on, gpu: on } }); }),
     coolerSlider,
-    el('div', { class: 'ctl' }, el('label', { for: 'gpu-type' }, 'Graphics Card'),
-      select('gpu-type', Object.entries(GPUS).map(([id, g]) => [id, g.label]), state.gpuType, (v) => h.onGpu(v))),
     el('div', { class: 'ctl' }, el('label', { for: 'psu-mode' }, 'Power Supply'),
       select('psu-mode', Object.entries(PSU_MODES), state.psuMode, (v) => h.onPsu(v)))));
 
@@ -250,6 +242,7 @@ export function buildUI(state, h) {
         el('div', {},
           el('h3', { class: 'eyebrow' }, 'Cross-section'),
           el('div', { class: 'ctl' }, el('label', {}, 'Field'), viewCtl.sliceField),
+          el('div', { class: 'ctl' }, el('label', {}, 'Axis'), viewCtl.sliceAxis),
           viewCtl.slicePos)),
       el('hr'),
       el('div', { class: 'cols' },

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SLOTS, FACES, PARTS, INTERNAL_FANS, FIXED_VENTS, GPUS, GPU_BLOWER, GPU_FLOW, CASE_FAN, FAN_SPECS, CPU_COOLER, RAM, PSU, psuLayout } from '../sim/model.js';
+import { SLOTS, FACES, PARTS, INTERNAL_FANS, FIXED_VENTS, GPUS, GPU_BLOWER, CASE_FAN, FAN_SPECS, CPU_COOLER, RAM, PSU, psuLayout } from '../sim/model.js';
 import { heat } from './colormap.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
@@ -623,9 +623,7 @@ export class CaseView {
       g.add(boxMesh([rx0 + 0.013, yc - 0.0025, z - 0.0007], [rx0 + 0.017, yc + 0.003, z], chipMat));
     }
 
-    if (this.gpuType === 'blower') this.buildBlowerGpu();
-    else if (this.gpuType === 'pro6000') this.buildFlowGpu();
-    else this.buildOpenAirGpu();
+    this.buildBlowerGpu();
   }
 
   /**
@@ -694,118 +692,6 @@ export class CaseView {
     g.add(boxMesh([x0 + 0.012, y0 + 0.04, z0 - 0.004], [x0 + 0.03, y0 + 0.056, z0 + 0.002], body)); // rocker switch
     // Brushed accent panel on the side facing the glass.
     g.add(boxMesh([x0 - 0.0012, y0 + 0.012, z0 + 0.11], [x0 - 0.0002, y1 - 0.012, z1 - 0.012], silver));
-  }
-
-  /**
-   * Dual-slot flow-through workstation card (305 x 137 x ~42 mm): a slim shell
-   * with a solid centre (PCB, GPU, vapour chamber) and an open fin stack at each
-   * end; one axial fan under each stack pushes air straight through and out of
-   * the back. Bracket with four DisplayPorts. No branding.
-   */
-  buildFlowGpu() {
-    const g = this.group;
-    const W = this.dims[0];
-    const F = GPU_FLOW;
-    const x0 = F.x0, x1 = W - 0.0105, y0 = F.y0, y1 = F.y1, z0 = F.z0, z1 = F.z1;
-    const shell = new THREE.MeshStandardMaterial({ color: 0x2a2c30, roughness: 0.4, metalness: 0.7, side: THREE.DoubleSide });
-    const black = new THREE.MeshStandardMaterial({ color: 0x0e0f11, roughness: 0.7, metalness: 0.2 });
-    const silver = new THREE.MeshStandardMaterial({ color: 0xb9bdc3, roughness: 0.32, metalness: 0.9, side: THREE.DoubleSide });
-    this.gpuFinMat = new THREE.MeshStandardMaterial({ color: 0x8c9096, roughness: 0.4, metalness: 0.85, emissive: 0x000000 });
-
-    // Fan face (bottom): a plate with two round openings.
-    const face = new THREE.Shape();
-    face.moveTo(x0, z0); face.lineTo(x1, z0); face.lineTo(x1, z1); face.lineTo(x0, z1); face.lineTo(x0, z0);
-    for (const [fx, fz] of F.fans) {
-      const h = new THREE.Path();
-      h.absarc(fx, fz, F.radius + 0.002, 0, Math.PI * 2, true);
-      face.holes.push(h);
-    }
-    const faceGeo = remap(new THREE.ExtrudeGeometry(face, { depth: 0.003, bevelEnabled: false, curveSegments: 48 }), (a, b, d) => [a, y0 - 0.0015 + d, b]);
-    g.add(new THREE.Mesh(faceGeo, shell));
-    // Side walls along the length, the far end cap, and the solid centre body.
-    g.add(boxMesh([x0, y0, z0], [x0 + 0.003, y1, z1], shell));
-    g.add(boxMesh([x1 - 0.003, y0, z0], [x1, y1, z1], shell));
-    g.add(boxMesh([x0, y0, z1 - 0.006], [x1, y1, z1], shell));
-    g.add(boxMesh([x0 + 0.003, y0, F.core[0]], [x1 - 0.003, y1, F.core[1]], shell));
-    // A thin bright accent band around the centre body.
-    for (const z of [F.core[0], F.core[1]]) g.add(boxMesh([x0 - 0.0005, y0, z - 0.0015], [x1, y1 + 0.0005, z + 0.0015], silver));
-    // Open fin stacks at both ends (plates across the card, air flows up through them).
-    const stacks = [[z0 + 0.008, F.core[0]], [F.core[1], z1 - 0.006]];
-    const finGeo = new THREE.BoxGeometry(x1 - x0 - 0.008, y1 - y0 - 0.004, 0.0007);
-    const pitch = 0.0024;
-    let count = 0;
-    for (const [a, b] of stacks) count += Math.floor((b - a) / pitch);
-    const fins = new THREE.InstancedMesh(finGeo, this.gpuFinMat, count);
-    const m4 = new THREE.Matrix4();
-    let n = 0;
-    for (const [a, b] of stacks) {
-      for (let z = a + pitch / 2; z < b && n < count; z += pitch) {
-        m4.makeTranslation((x0 + x1) / 2, (y0 + y1) / 2, z);
-        fins.setMatrixAt(n++, m4);
-      }
-    }
-    g.add(fins);
-
-    // Bracket on the rear panel: vent slots in two rows plus four DisplayPorts.
-    const bx0 = x0 - 0.004, bx1 = W - 0.002, by0 = y0 - 0.003, by1 = y1 + 0.004;
-    const bracket = new THREE.Shape();
-    bracket.moveTo(bx0, by0); bracket.lineTo(bx1, by0); bracket.lineTo(bx1, by1); bracket.lineTo(bx0, by1); bracket.lineTo(bx0, by0);
-    for (const [ya, yb] of [[y0 + 0.004, y0 + 0.014], [y0 + 0.018, y0 + 0.028]]) {
-      for (let x = x0 + 0.06; x < W - 0.016; x += 0.0075) {
-        const h = new THREE.Path();
-        h.moveTo(x, ya); h.lineTo(x, yb); h.lineTo(x + 0.0045, yb); h.lineTo(x + 0.0045, ya); h.lineTo(x, ya);
-        bracket.holes.push(h);
-      }
-    }
-    g.add(new THREE.Mesh(remap(new THREE.ExtrudeGeometry(bracket, { depth: 0.0012, bevelEnabled: false }), (a, b, d) => [a, b, -0.0016 - d]), silver));
-    for (let i = 0; i < 4; i++) {
-      const px = x0 + 0.004 + i * 0.0135;
-      g.add(boxMesh([px, y0 + 0.006, -0.0045], [px + 0.011, y0 + 0.012, -0.0026], black));
-    }
-    // PCIe power connector on the board edge, centre section.
-    g.add(boxMesh([x0 - 0.001, y1 - 0.016, 0.148], [x0 + 0.004, y1 - 0.004, 0.166], black));
-  }
-
-  buildOpenAirGpu() {
-    const g = this.group;
-    const W = this.dims[0];
-    const m4 = new THREE.Matrix4();
-    const pcb = new THREE.MeshStandardMaterial({ color: 0x15201b, roughness: 0.7, metalness: 0.2 });
-    const dark = new THREE.MeshStandardMaterial({ color: 0x1a1d23, roughness: 0.5, metalness: 0.4 });
-    // GPU: PCB + backplate, fin stack, shroud with fan cutouts.
-    const gp = partBox('gpu-pcb');
-    g.add(boxMesh(gp.min, gp.max, pcb));
-    g.add(boxMesh([gp.min[0], gp.max[1], gp.min[2]], [gp.max[0], gp.max[1] + 0.003, gp.max[2]], dark));
-    const gf = partBox('gpu-fins');
-    this.gpuFinMat = new THREE.MeshStandardMaterial({ color: 0xaeb4be, roughness: 0.35, metalness: 0.85, emissive: 0x000000 });
-    const gCount = 56;
-    const gGeo = new THREE.BoxGeometry(gf.max[0] - gf.min[0], gf.max[1] - gf.min[1], 0.0012);
-    const gpuFins = new THREE.InstancedMesh(gGeo, this.gpuFinMat, gCount);
-    for (let n = 0; n < gCount; n++) {
-      const z = gf.min[2] + ((n + 0.5) / gCount) * (gf.max[2] - gf.min[2]);
-      m4.makeTranslation((gf.min[0] + gf.max[0]) / 2, (gf.min[1] + gf.max[1]) / 2, z);
-      gpuFins.setMatrixAt(n, m4);
-    }
-    g.add(gpuFins);
-    const shroudShape = new THREE.Shape();
-    // Plane axes for y-normal faces are (x, z).
-    const sx0 = 0.058, sx1 = W - 0.01, sz0 = 0.008, sz1 = 0.31;
-    shroudShape.moveTo(sx0, sz0); shroudShape.lineTo(sx1, sz0); shroudShape.lineTo(sx1, sz1);
-    shroudShape.lineTo(sx0, sz1); shroudShape.lineTo(sx0, sz0);
-    for (const f of GPUS.openair.fans) {
-      const hole = new THREE.Path();
-      hole.absarc(f.c[0], f.c[1], f.radius + 0.002, 0, Math.PI * 2, true);
-      shroudShape.holes.push(hole);
-    }
-    const shroudMat = new THREE.MeshStandardMaterial({ color: 0x23262e, roughness: 0.45, metalness: 0.5, side: THREE.DoubleSide });
-    const sGeo = new THREE.ExtrudeGeometry(shroudShape, { depth: 0.004, bevelEnabled: false, curveSegments: 32 });
-    // Extrude runs along local z; map shape (x, y) -> world (x, z) and depth -> y.
-    sGeo.rotateX(Math.PI / 2);
-    const sMesh = new THREE.Mesh(sGeo, shroudMat);
-    sMesh.position.y = 0.196;
-    g.add(sMesh);
-    const accent = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xff4d2e, emissiveIntensity: 0.5 });
-    g.add(boxMesh([sx0, 0.199, sz0], [sx0 + 0.0015, 0.203, sz1], accent));
   }
 
   /**

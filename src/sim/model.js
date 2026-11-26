@@ -119,7 +119,7 @@ export const HEAT_GROUPS = {
   psu: { label: 'PSU', G0: 0.8, G1: 6, rjc: 0, cap: 7, tjMax: 999, defaultPower: 0, hybrid: true },
 };
 
-// Graphics cards. Each brings its own parts, shroud plates, fans, vents and
+// Graphics card. It brings its own parts, shroud plates, fans, vents and
 // heatsink parameters. Card length runs along z from the rear bracket.
 //
 // The workstation blower card follows a 267 x 111 x 40 mm dual-slot design:
@@ -137,43 +137,7 @@ export const GPU_BLOWER = {
 
 const B = GPU_BLOWER;
 
-// Workstation flagship, double flow-through (product page and brochure):
-// 12" L x 5.4" H (305 x 137 mm), dual slot, 600 W max. Two axial fans push air
-// straight through two fin stacks and out of the back of the card; the PCB and
-// GPU sit in the solid centre section. Fan airflow is not published: estimated.
-export const GPU_FLOW = {
-  x0: W - 0.01 - 0.137, // card edge facing the glass
-  y0: 0.207, y1: 0.249, // fan face (down) and back side (up), ~42 mm
-  z0: 0.004, z1: 0.309, // 305 mm long from the bracket
-  core: [0.122, 0.19],  // solid centre section along the length
-  fans: [[0.1315, 0.063], [0.1315, 0.25]], // [x, z] centres
-  radius: 0.05,
-};
-const F = GPU_FLOW;
-
 export const GPUS = {
-  pro6000: {
-    label: 'Workstation Flow-Through',
-    power: 600,
-    parts: [
-      { id: 'flow-core', kind: 'solid', min: [F.x0 + 0.002, F.y0, F.core[0]], max: [W - 0.01, F.y1, F.core[1]] },
-      { id: 'flow-fins-rear', kind: 'porous', heat: 'gpu', min: [F.x0 + 0.003, F.y0, F.z0 + 0.008], max: [W - 0.012, F.y1, F.core[0]], drag: [70, 8, 140] },
-      { id: 'flow-fins-front', kind: 'porous', heat: 'gpu', min: [F.x0 + 0.003, F.y0, F.core[1]], max: [W - 0.012, F.y1, F.z1 - 0.006], drag: [70, 8, 140] },
-    ],
-    plates: [
-      // Closed sides and fan face; the back stays open over both fin stacks.
-      { id: 'flow-side-glass', axis: 0, at: F.x0 + 0.003, min: [F.y0, F.z0], max: [F.y1, F.z1] }, // [y,z]
-      { id: 'flow-side-board', axis: 0, at: W - 0.012, min: [F.y0, F.z0], max: [F.y1, F.z1] },
-      { id: 'flow-end', axis: 2, at: F.z1 - 0.006, min: [F.x0, F.y0], max: [W - 0.01, F.y1] }, // [x,y]
-      { id: 'flow-face', axis: 1, at: F.y0, min: [F.x0, F.z0], max: [W - 0.01, F.z1] }, // [x,z]
-    ],
-    fans: [
-      { id: 'gpu-fan-1', group: 'gpu', axis: 1, dir: 1, at: F.y0, c: F.fans[0], radius: F.radius, hub: 0.018, qMax: 0.03, pMax: 40, visual: 'axial' },
-      { id: 'gpu-fan-2', group: 'gpu', axis: 1, dir: 1, at: F.y0, c: F.fans[1], radius: F.radius, hub: 0.018, qMax: 0.03, pMax: 40, visual: 'axial' },
-    ],
-    vents: [],
-    heat: { G0: 1.5, G1: 14, rjc: 0.03, cap: 14, tjMax: 90 },
-  },
   blower: {
     label: 'Workstation Blower',
     power: 300,
@@ -204,31 +168,8 @@ export const GPUS = {
     ],
     heat: { G0: 1.0, G1: 4.2, rjc: 0.05, cap: 9, tjMax: 90 },
   },
-  openair: {
-    label: 'Open-Air',
-    power: 300,
-    parts: [
-      { id: 'gpu-pcb', kind: 'solid', min: [0.06, 0.245, 0.005], max: [W - 0.01, 0.253, 0.31] },
-      {
-        id: 'gpu-fins', kind: 'porous', heat: 'gpu',
-        min: [0.065, 0.205, 0.02], max: [W - 0.012, 0.245, 0.3],
-        // GPU fin plates are perpendicular to the card length: air leaves sideways.
-        drag: [6, 10, 220],
-      },
-    ],
-    plates: [
-      { id: 'gpu-shroud', axis: 1, at: 0.205, min: [0.06, 0.015], max: [W - 0.01, 0.305] }, // [x,z]
-    ],
-    fans: [
-      { id: 'gpu-fan-1', group: 'gpu', axis: 1, dir: 1, at: 0.205, c: [0.128, 0.065], radius: 0.044, hub: 0.014, qMax: 0.02, pMax: 26, visual: 'axial' },
-      { id: 'gpu-fan-2', group: 'gpu', axis: 1, dir: 1, at: 0.205, c: [0.128, 0.16], radius: 0.044, hub: 0.014, qMax: 0.02, pMax: 26, visual: 'axial' },
-      { id: 'gpu-fan-3', group: 'gpu', axis: 1, dir: 1, at: 0.205, c: [0.128, 0.255], radius: 0.044, hub: 0.014, qMax: 0.02, pMax: 26, visual: 'axial' },
-    ],
-    vents: [],
-    heat: { G0: 1.2, G1: 10.5, rjc: 0.05, cap: 9, tjMax: 90 },
-  },
 };
-export const DEFAULT_GPU = 'pro6000';
+export const DEFAULT_GPU = 'blower';
 
 // ATX power supply under the shroud at the rear: 150 x 86 x 210 mm, 1600 W,
 // 135 mm fan behind a honeycomb grille, honeycomb exhaust through the rear panel.
