@@ -24,6 +24,7 @@ const P = {
   pause: '<path d="M8 5v14M16 5v14"/>',
   gear: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>',
   home: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+  flat: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 12h16M12 4v16" opacity=".55"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   minus: '<path d="M5 12h14"/>',
   left: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
@@ -102,22 +103,16 @@ export function buildUI(state, h) {
   document.getElementById('topbar').append(
     el('a', { class: 'wordmark', href: '#', 'aria-label': 'Airflow home', onclick: (e) => e.preventDefault() },
       el('span', { class: 'mark', html: `<svg viewBox="0 0 24 24">${P.mark}</svg>` }), 'Airflow'),
-    el('nav', { class: 'links' },
-      el('button', { type: 'button', class: 'link', onclick: () => openModal('about') }, 'How it works'),
-      el('button', { type: 'button', class: 'link', onclick: () => openModal('settings') }, 'Settings')),
     el('div', { class: 'actions' },
-      el('button', { type: 'button', class: 'btn outline hide-sm', onclick: () => openModal('about') }, 'How it works'),
       el('button', { type: 'button', class: 'btn soft icon', 'aria-label': 'Settings', title: 'Settings', onclick: () => openModal('settings') }, icon('gear')),
       playBtn),
   );
 
   // ---- Stage overlays -----------------------------------------------------------------
-  const live = el('span', { class: 'live warming' }, el('i'), el('b', {}, 'Warming up'));
-  const gridTxt = el('span', {}, '');
-  const fpsTxt = el('span', {}, '');
-  document.getElementById('overlay-tl').append(el('div', { class: 'chip' }, live, gridTxt, fpsTxt));
+  const live = el('span', { class: 'live warming' }, el('i'), el('b', {}, 'Starting'));
+  document.getElementById('overlay-tl').append(el('div', { class: 'chip' }, live));
 
-  const colorNames = { temperature: 'temperature', speed: 'speed', source: 'source' };
+  const colorNames = { temperature: 'Temperature', speed: 'Speed', source: 'Source' };
   const pills = {};
   const pill = (key, label, onclick) => {
     pills[key] = el('button', { type: 'button', class: `btn glass pill-${key}`, 'aria-pressed': 'false', onclick }, label);
@@ -125,28 +120,35 @@ export function buildUI(state, h) {
   };
   document.getElementById('overlay-bl').append(
     pill('particles', 'Streaks', () => setView({ particles: !view.particles })),
-    pill('color', `Colour: ${colorNames[view.color]}`, () => {
+    pill('color', colorNames[view.color], () => {
       const order = ['temperature', 'speed', 'source'];
       setView({ color: order[(order.indexOf(view.color) + 1) % order.length], particles: true });
     }),
     pill('slice', 'Plane', () => setView({ slice: !view.slice })),
     pill('panels', 'Panels', () => setView({ panels: !view.panels })),
   );
+  const flatBtn = el('button', { type: 'button', class: 'btn glass icon flat-btn', 'aria-label': 'Flat View', title: 'Flat View', 'aria-pressed': 'false' }, icon('flat'));
+  flatBtn.addEventListener('click', () => {
+    const on = h.onCamera('flat');
+    flatBtn.classList.toggle('on', on);
+    flatBtn.setAttribute('aria-pressed', String(on));
+    syncPills();
+    for (const [k, ctl] of Object.entries(viewCtl)) ctl.set?.(k === 'sliceAxis' ? String(view[k]) : view[k]);
+  });
   document.getElementById('overlay-br').append(
     el('button', { type: 'button', class: 'btn glass icon', 'aria-label': 'Zoom in', onclick: () => h.onCamera('in') }, icon('plus')),
     el('button', { type: 'button', class: 'btn glass icon', 'aria-label': 'Zoom out', onclick: () => h.onCamera('out') }, icon('minus')),
-    el('button', { type: 'button', class: 'btn glass icon', 'aria-label': 'Reset view', onclick: () => h.onCamera('home') }, icon('home')),
+    flatBtn,
   );
 
   // ---- Preset bar (caption + arrows, under the stage) ------------------------------------
   const presetTitle = el('b', {}, '');
-  const presetHint = el('span', {}, '');
   const stepPreset = (d) => {
     presetIndex = (presetIndex + d + presetIds.length) % presetIds.length;
     h.onPreset(presetIds[presetIndex]);
   };
   document.getElementById('presetbar').append(
-    el('div', { class: 'caption' }, el('span', { class: 'eyebrow' }, 'Preset'), el('p', {}, presetTitle, ' ', presetHint)),
+    el('div', { class: 'caption' }, el('p', {}, presetTitle)),
     el('div', { class: 'arrows' },
       el('button', { type: 'button', class: 'btn soft icon', 'aria-label': 'Previous preset', onclick: () => stepPreset(-1) }, icon('left')),
       el('button', { type: 'button', class: 'btn soft icon', 'aria-label': 'Next preset', onclick: () => stepPreset(1) }, icon('right'))),
@@ -189,11 +191,11 @@ export function buildUI(state, h) {
   const kvRow = (key, label) => { kv[key] = el('span', {}, '–'); return el('div', { class: 'row' }, el('span', { class: 'k' }, label), kv[key]); };
   side.append(card('Airflow',
     el('div', { class: 'stats2' },
-      el('div', { class: 'stat' }, el('span', { class: 'eyebrow' }, 'Intake, CFM'), flowIn),
-      el('div', { class: 'stat' }, el('span', { class: 'eyebrow' }, 'Exhaust, CFM'), flowOut)),
-    el('div', { class: 'row strong' }, el('span', { class: 'k' }, 'Case pressure'), el('span', {}, pVal, pTag)),
-    kvRow('gpuOut', 'GPU blower to rear'), kvRow('vent', 'Passive in / out'),
-    kvRow('air', 'Case air'), kvRow('exh', 'Exhaust air'), kvRow('hot', 'Hottest air'), kvRow('load', 'System load')));
+      el('div', { class: 'stat' }, el('span', { class: 'eyebrow' }, 'Intake'), flowIn),
+      el('div', { class: 'stat' }, el('span', { class: 'eyebrow' }, 'Exhaust'), flowOut)),
+    el('div', { class: 'row strong' }, el('span', { class: 'k' }, 'Pressure'), el('span', {}, pVal, pTag)),
+    kvRow('gpuOut', 'GPU Exhaust'), kvRow('vent', 'Passive'),
+    kvRow('air', 'Case Air'), kvRow('exh', 'Exhaust Air'), kvRow('hot', 'Peak Air'), kvRow('load', 'Load')));
 
   const presetSel = select('preset', [['', 'Custom'], ...presetIds.map((id) => [id, PRESETS[id].label])], 'balanced', (id) => { if (id) h.onPreset(id); });
   const slotRows = {};
@@ -205,72 +207,64 @@ export function buildUI(state, h) {
     slotRows[slot.id] = { seg: s, cfm, dot };
     slotList.append(el('div', { class: 'slot' }, el('div', { class: 'slot-head' }, dot, el('span', { class: 'name' }, slot.label), cfm), s));
   }
-  side.append(card('Fan slots', el('div', { class: 'ctl' }, el('label', { for: 'preset' }, 'Preset'), presetSel), slotList,
-    el('p', { class: 'note' }, 'Tip: click a slot on the 3D case to cycle it.')));
+  side.append(card('Fan Slots', el('div', { class: 'ctl' }, el('label', { for: 'preset' }, 'Preset'), presetSel), slotList,
+    ));
 
   const coolerSlider = slider({
-    label: 'Cooler fans (manual)', min: 0, max: 1, step: 0.01, value: state.coolerManual,
+    label: 'Cooler Fans', min: 0, max: 1, step: 0.01, value: state.coolerManual,
     fmt: (v) => `${Math.round(v * 100)}%`, onInput: (v) => h.onConfig({ coolerManual: { cpu: v, gpu: v } }),
   });
   coolerSlider.hidden = state.coolerAuto;
-  side.append(card('Load and hardware',
-    slider({ label: 'Case fan speed', min: 0, max: 1, step: 0.05, value: state.caseFanSpeed, fmt: (v) => `${Math.round(v * 100)}%`, onInput: (v) => h.onConfig({ caseFanSpeed: v }) }),
-    slider({ label: 'CPU power', min: 15, max: 300, step: 5, value: state.power.cpu, fmt: (v) => `${v} W`, onInput: (v) => h.onConfig({ power: { cpu: v } }) }),
-    slider({ label: 'GPU power', min: 20, max: 500, step: 5, value: state.power.gpu, fmt: (v) => `${v} W`, onInput: (v) => h.onConfig({ power: { gpu: v } }) }),
-    slider({ label: 'Room temperature', min: 10, max: 40, step: 0.5, value: state.ambient, fmt: (v) => `${v.toFixed(1)}°C`, onInput: (v) => h.onConfig({ ambient: v }) }),
-    toggle('CPU/GPU fans follow temperature', state.coolerAuto, (on) => { coolerSlider.hidden = on; h.onConfig({ coolerAuto: { cpu: on, gpu: on } }); }),
+  side.append(card('Load & Hardware',
+    slider({ label: 'Case Fans', min: 0, max: 1, step: 0.05, value: state.caseFanSpeed, fmt: (v) => `${Math.round(v * 100)}%`, onInput: (v) => h.onConfig({ caseFanSpeed: v }) }),
+    slider({ label: 'CPU', min: 15, max: 300, step: 5, value: state.power.cpu, fmt: (v) => `${v} W`, onInput: (v) => h.onConfig({ power: { cpu: v } }) }),
+    slider({ label: 'GPU', min: 20, max: 500, step: 5, value: state.power.gpu, fmt: (v) => `${v} W`, onInput: (v) => h.onConfig({ power: { gpu: v } }) }),
+    slider({ label: 'Ambient', min: 10, max: 40, step: 0.5, value: state.ambient, fmt: (v) => `${v.toFixed(1)}°C`, onInput: (v) => h.onConfig({ ambient: v }) }),
+    toggle('Auto Cooler Fans', state.coolerAuto, (on) => { coolerSlider.hidden = on; h.onConfig({ coolerAuto: { cpu: on, gpu: on } }); }),
     coolerSlider,
-    el('div', { class: 'ctl' }, el('label', { for: 'gpu-type' }, 'Graphics card'),
+    el('div', { class: 'ctl' }, el('label', { for: 'gpu-type' }, 'Graphics Card'),
       select('gpu-type', Object.entries(GPUS).map(([id, g]) => [id, g.label]), state.gpuType, (v) => h.onGpu(v))),
-    el('div', { class: 'ctl' }, el('label', { for: 'psu-mode' }, `Power supply · ${PSU.rating} W`),
+    el('div', { class: 'ctl' }, el('label', { for: 'psu-mode' }, 'Power Supply'),
       select('psu-mode', Object.entries(PSU_MODES), state.psuMode, (v) => h.onPsu(v)))));
 
   // ---- Modals -----------------------------------------------------------------------------
   const modalRoot = document.getElementById('modal-root');
   const viewCtl = {
     color: seg([['temperature', 'Temperature'], ['speed', 'Speed'], ['source', 'Source']], view.color, (c) => setView({ color: c }), 'wide'),
-    count: slider({ label: 'Streak count', min: 500, max: 12000, step: 500, value: view.count, fmt: (x) => `${x}`, onInput: (x) => setView({ count: x }) }),
-    seedMix: slider({ label: 'Seeded in volume vs. at inlets', min: 0, max: 1, step: 0.05, value: view.seedMix, fmt: (x) => `${Math.round(x * 100)}%`, onInput: (x) => setView({ seedMix: x }) }),
+    count: slider({ label: 'Count', min: 500, max: 12000, step: 500, value: view.count, fmt: (x) => `${x}`, onInput: (x) => setView({ count: x }) }),
+    seedMix: slider({ label: 'Seeding', min: 0, max: 1, step: 0.05, value: view.seedMix, fmt: (x) => `${Math.round(x * 100)}%`, onInput: (x) => setView({ seedMix: x }) }),
     sliceField: seg([['speed', 'Speed'], ['temperature', 'Temperature'], ['pressure', 'Pressure']], view.sliceField, (c) => setView({ sliceField: c, slice: true }), 'wide'),
     sliceAxis: seg([['0', 'Side'], ['1', 'Top'], ['2', 'Front']], String(view.sliceAxis), (c) => setView({ sliceAxis: +c, slice: true }), 'wide'),
-    slicePos: slider({ label: 'Plane position', min: 0, max: 1, step: 0.01, value: view.slicePos, fmt: (x) => `${Math.round(x * 100)}%`, onInput: (x) => setView({ slicePos: x }) }),
+    slicePos: slider({ label: 'Position', min: 0, max: 1, step: 0.01, value: view.slicePos, fmt: (x) => `${Math.round(x * 100)}%`, onInput: (x) => setView({ slicePos: x }) }),
   };
   const closeBtn = () => el('button', { type: 'button', class: 'btn soft icon closebtn', 'aria-label': 'Close', onclick: () => closeModal() }, icon('close'));
   const modals = {
     settings: el('div', { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'settings-h' },
       closeBtn(),
-      el('h1', { id: 'settings-h' }, 'Tune the simulation.'),
+      el('h1', { id: 'settings-h' }, 'Settings'),
       el('div', { class: 'cols' },
         el('div', {},
           el('h3', { class: 'eyebrow' }, 'Streaks'),
-          el('div', { class: 'ctl' }, el('label', {}, 'Colour by'), viewCtl.color),
+          el('div', { class: 'ctl' }, el('label', {}, 'Colour'), viewCtl.color),
           viewCtl.count, viewCtl.seedMix),
         el('div', {},
           el('h3', { class: 'eyebrow' }, 'Cross-section'),
-          el('div', { class: 'ctl' }, el('label', {}, 'Shows'), viewCtl.sliceField),
-          el('div', { class: 'ctl' }, el('label', {}, 'Faces'), viewCtl.sliceAxis),
+          el('div', { class: 'ctl' }, el('label', {}, 'Field'), viewCtl.sliceField),
+          el('div', { class: 'ctl' }, el('label', {}, 'Axis'), viewCtl.sliceAxis),
           viewCtl.slicePos)),
       el('hr'),
       el('div', { class: 'cols' },
         el('div', {},
           el('h3', { class: 'eyebrow' }, 'Simulation'),
-          slider({ label: 'Time scale (slow motion)', min: 0.05, max: 1, step: 0.05, value: state.timeScale, fmt: (x) => `${x.toFixed(2)}×`, onInput: (x) => h.onConfig({ timeScale: x }) }),
-          toggle('Buoyancy (hot air rises)', state.buoyancy, (on) => h.onConfig({ buoyancy: on }))),
+          slider({ label: 'Time Scale', min: 0.05, max: 1, step: 0.05, value: state.timeScale, fmt: (x) => `${x.toFixed(2)}×`, onInput: (x) => h.onConfig({ timeScale: x }) }),
+          toggle('Buoyancy', state.buoyancy, (on) => h.onConfig({ buoyancy: on }))),
         el('div', {},
           el('h3', { class: 'eyebrow' }, 'Accuracy'),
-          el('div', { class: 'ctl' }, el('label', { for: 'grid-res' }, 'Grid resolution'),
-            select('grid-res', [['low', 'Low (fastest)'], ['medium', 'Medium'], ['high', 'High (slowest)']], state.resolution, (r) => h.onResolution(r))))),
+          el('div', { class: 'ctl' }, el('label', { for: 'grid-res' }, 'Resolution'),
+            select('grid-res', [['low', 'Low'], ['medium', 'Medium'], ['high', 'High']], state.resolution, (r) => h.onResolution(r))))),
       el('div', { class: 'dialog-actions' },
         el('button', { type: 'button', class: 'btn primary', onclick: () => closeModal() }, 'Done'),
-        el('button', { type: 'button', class: 'textlink', onclick: () => { h.onReset(); closeModal(); } }, 'Reset heat and start over'))),
-    about: el('div', { class: 'dialog narrow', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'about-h' },
-      closeBtn(),
-      el('h1', { id: 'about-h' }, 'A real fluid solve, running in your browser.'),
-      el('p', {}, 'Air is computed as an incompressible flow on a staggered 3D grid, with a pressure projection every step. Fans follow static-pressure curves, so they lose flow against restrictive vents.'),
-      el('p', {}, 'Heatsinks are porous blocks with direction-dependent drag. Their heat is carried away by the air passing through, and energy is conserved.'),
-      el('p', {}, 'Open slots and expansion-slot covers act as passive vents: more intake than exhaust pushes air out through them (positive pressure); the reverse pulls unfiltered air in.'),
-      el('div', { class: 'dialog-actions' },
-        el('button', { type: 'button', class: 'btn primary', onclick: () => closeModal() }, 'Got it'))),
+        el('button', { type: 'button', class: 'textlink', onclick: () => { h.onReset(); closeModal(); } }, 'Reset'))),
   };
   let openName = null;
   let lastFocus = null;
@@ -302,7 +296,7 @@ export function buildUI(state, h) {
   function setView(patch) {
     h.onView(patch);
     syncPills();
-    setText(pills.color, `Colour: ${colorNames[view.color]}`);
+    setText(pills.color, colorNames[view.color]);
     for (const [k, ctl] of Object.entries(viewCtl)) ctl.set?.(k === 'sliceAxis' ? String(view[k]) : view[k]);
   }
 
@@ -315,8 +309,8 @@ export function buildUI(state, h) {
       el('div', { class: 'bar', style: `background:${cssGradient(fn, signed)}` }),
       el('div', { class: 'ends' }, el('span', {}, lo), el('span', {}, hi)));
     if (v.particles) {
-      if (v.color === 'temperature') legend.append(item('Air temperature', heat, 'Room', '+20°C'));
-      else if (v.color === 'speed') legend.append(item('Air speed', turbo, '0 m/s', '3 m/s'));
+      if (v.color === 'temperature') legend.append(item('Temperature', heat, 'Ambient', '+20°'));
+      else if (v.color === 'speed') legend.append(item('Speed', turbo, '0', '3 m/s'));
       else {
         const sw = el('div', { class: 'swatches' });
         SLOTS.forEach((s, i) => {
@@ -324,14 +318,14 @@ export function buildUI(state, h) {
           sw.append(el('span', { style: `--c: rgb(${c})` }, s.label.replace(/ \((.*)\)/, ' $1')));
         });
         sw.append(el('span', { style: '--c: rgb(178,184,199)' }, 'Vents'));
-        legend.append(el('div', { class: 'legend-item' }, el('div', { class: 'title' }, 'Where air came in'), sw));
+        legend.append(el('div', { class: 'legend-item' }, el('div', { class: 'title' }, 'Source'), sw));
       }
     }
     if (v.slice) {
-      if (v.sliceField === 'speed') legend.append(item('Plane: speed', turbo, '0 m/s', '3 m/s'));
-      else if (v.sliceField === 'temperature') legend.append(item('Plane: temperature', heat, 'Room', '+20°C'));
+      if (v.sliceField === 'speed') legend.append(item('Plane Speed', turbo, '0', '3 m/s'));
+      else if (v.sliceField === 'temperature') legend.append(item('Plane Temperature', heat, 'Ambient', '+20°'));
       else {
-        const it = item('Plane: pressure', diverging, '−', '+', true);
+        const it = item('Plane Pressure', diverging, '−', '+', true);
         it.querySelector('.ends').id = 'pressure-ends';
         legend.append(it);
       }
@@ -359,12 +353,12 @@ export function buildUI(state, h) {
       if (!grp) continue;
       setText(temp[key].num, `${grp.die.toFixed(0)}°`);
       temp[key].num.dataset.tone = tempTone(grp.die, limit);
-      const fan = grp.fan < 0.02 ? 'fan off' : `fan ${Math.round(grp.fan * 100)}%`;
+      const fan = grp.fan < 0.02 ? 'Fan Off' : `${Math.round(grp.fan * 100)}%`;
       setText(temp[key].sub, key === 'psu' ? fan : `${grp.power.toFixed(0)} W · ${fan}`);
     }
     const thr = ['cpu', 'gpu'].filter((k) => g[k].throttle < 0.98);
     throttleNote.hidden = !thr.length;
-    if (thr.length) setText(throttleNote, `${thr.map((k) => k.toUpperCase()).join(' and ')} throttling to stay under its limit.`);
+    if (thr.length) setText(throttleNote, `${thr.map((k) => k.toUpperCase()).join(' & ')} Throttling`);
     const cfm = (q) => (q * CFM_PER_M3S).toFixed(0);
     setText(flowIn, cfm(s.totalIn));
     setText(flowOut, cfm(s.totalOut));
@@ -378,7 +372,7 @@ export function buildUI(state, h) {
     setText(kv.air, `${s.airTemp.toFixed(1)}°C`);
     setText(kv.exh, `${s.exhaustTemp.toFixed(1)}°C`);
     setText(kv.hot, `${s.airMax.toFixed(1)}°C`);
-    setText(kv.load, `${s.psuLoad.toFixed(0)} W · ${(s.psuEff * 100).toFixed(1)}% eff.`);
+    setText(kv.load, `${s.psuLoad.toFixed(0)} W`);
     for (const f of s.fans) {
       if (f.kind !== 'case') continue;
       const r = slotRows[f.id];
@@ -387,17 +381,13 @@ export function buildUI(state, h) {
     for (const slot of SLOTS) {
       if (!s.fans.some((f) => f.id === slot.id)) {
         const mode = state.modes[slot.id];
-        setText(slotRows[slot.id].cfm, mode === 'open' ? 'Passive vent' : mode === 'blocked' ? 'Covered' : '—');
+        setText(slotRows[slot.id].cfm, mode === 'open' ? 'Vent' : mode === 'blocked' ? 'Shut' : '—');
       }
     }
     const pe = document.getElementById('pressure-ends');
     if (pe && extra?.pressureRange) {
       pe.children[0].textContent = `−${extra.pressureRange.toFixed(1)} Pa`;
       pe.children[1].textContent = `+${extra.pressureRange.toFixed(1)} Pa`;
-    }
-    if (extra) {
-      setText(gridTxt, extra.grid);
-      setText(fpsTxt, `${extra.fps.toFixed(0)} fps`);
     }
   }
 
@@ -414,8 +404,7 @@ export function buildUI(state, h) {
     setActivePreset(id) {
       presetSel.value = id || '';
       if (id) presetIndex = presetIds.indexOf(id);
-      setText(presetTitle, id ? `${PRESETS[id].label}.` : 'Custom.');
-      setText(presetHint, id ? `${PRESETS[id].hint[0].toUpperCase()}${PRESETS[id].hint.slice(1)}.` : 'Your own fan layout.');
+      setText(presetTitle, id ? PRESETS[id].label : 'Custom');
     },
     setPaused(p) {
       playBtn.replaceChildren(icon(p ? 'play' : 'pause'), el('span', {}, p ? 'Resume' : 'Pause'));

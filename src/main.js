@@ -164,16 +164,46 @@ function makeFloor() {
 }
 
 /** Frame the case so it fits the part of the viewport not covered by cards. */
+let flat = false;
+let flatSaved = null;
+
+/** Frame the case so it fits the part of the viewport not covered by cards. */
 function frameCamera() {
   const w = Math.max(1, viewport.clientWidth - offset.left);
   const h = Math.max(1, viewport.clientHeight - offset.bottom);
   const aspect = w / h;
-  const fitH = caseSize[1] * 1.3;
-  const fitW = Math.hypot(caseSize[0], caseSize[2]) * 1.2;
+  const fitH = caseSize[1] * (flat ? 1.75 : 1.3);
+  const fitW = flat ? caseSize[2] * 1.9 : Math.hypot(caseSize[0], caseSize[2]) * 1.2;
   const vfov = THREE.MathUtils.degToRad(camera.fov);
   const dist = Math.max(fitH / 2 / Math.tan(vfov / 2), fitW / 2 / (Math.tan(vfov / 2) * aspect));
-  camera.position.copy(controls.target).addScaledVector(HOME_DIR, Math.min(2.6, dist));
+  const dir = flat ? FLAT_DIR : HOME_DIR;
+  camera.position.copy(controls.target).addScaledVector(dir, Math.min(flat ? 11 : 2.6, dist));
   controls.update();
+}
+
+// Flat view: straight-on through the glass with a narrow lens (nearly orthographic).
+const FLAT_DIR = new THREE.Vector3(-1, 0, 0);
+function setFlat(on) {
+  flat = on;
+  if (on) {
+    flatSaved = { slice: state.view.slice, sliceAxis: state.view.sliceAxis, slicePos: state.view.slicePos };
+    Object.assign(state.view, { slice: true, sliceAxis: 0, slicePos: 0.5 });
+    camera.fov = 6;
+    camera.far = 20;
+  } else {
+    if (flatSaved) Object.assign(state.view, flatSaved);
+    camera.fov = 36;
+    camera.far = 8;
+  }
+  camera.updateProjectionMatrix();
+  controls.enableRotate = !on;
+  controls.minDistance = on ? 1 : 0.25;
+  controls.maxDistance = on ? 12 : 3;
+  controls.target.set(0, 0, 0);
+  cameraTouched = false;
+  applyView();
+  frameCamera();
+  return flat;
 }
 
 function resize() {
@@ -318,7 +348,8 @@ const ui = buildUI(
       resize();
     },
     onCamera: (action) => {
-      if (action === 'home') { cameraTouched = false; controls.target.set(0, 0.02, 0); frameCamera(); return; }
+      if (action === 'flat') return setFlat(!flat);
+      if (action === 'home') { cameraTouched = false; controls.target.set(0, flat ? 0 : 0.02, 0); frameCamera(); return flat; }
       const d = camera.position.clone().sub(controls.target);
       const len = THREE.MathUtils.clamp(d.length() * (action === 'in' ? 0.82 : 1.22), controls.minDistance, controls.maxDistance);
       camera.position.copy(controls.target).addScaledVector(d.normalize(), len);
@@ -383,7 +414,8 @@ renderer.domElement.addEventListener('pointermove', (ev) => {
     const fan = summary?.fans.find((f) => f.id === id);
     const mode = state.modes[id];
     const detail = fan ? ` · ${fan.cfm.toFixed(0)} CFM` : '';
-    tooltip.innerHTML = `<b>${slot.label}</b> · ${mode}${detail}<br><span style="color:var(--muted)">Click to change</span>`;
+    const modeName = { intake: 'Intake', exhaust: 'Exhaust', open: 'Vent', blocked: 'Shut' }[mode];
+    tooltip.innerHTML = `<b>${slot.label}</b> · ${modeName}${detail}`;
     const r = viewport.getBoundingClientRect();
     tooltip.style.left = `${ev.clientX - r.left}px`;
     tooltip.style.top = `${ev.clientY - r.top}px`;
@@ -400,7 +432,7 @@ renderer.domElement.addEventListener('pointerup', (ev) => {
   if (!id) return;
   const next = SLOT_MODES[(SLOT_MODES.indexOf(state.modes[id]) + 1) % SLOT_MODES.length];
   setModes({ [id]: next });
-  const label = { intake: 'Intake', exhaust: 'Exhaust', open: 'Open vent', blocked: 'Covered' }[next];
+  const label = { intake: 'Intake', exhaust: 'Exhaust', open: 'Vent', blocked: 'Shut' }[next];
   ui.toast(`${SLOTS.find((s) => s.id === id).label} → ${label}`);
 });
 window.addEventListener('keydown', (ev) => {

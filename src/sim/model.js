@@ -13,12 +13,12 @@ export const CFM_PER_M3S = 2118.88;
 // in case coordinates, `size` is the fan frame size.
 // 140 x 140 x 25 mm fans everywhere (front 3, top 3, rear 1, bottom 1).
 export const SLOTS = [
-  { id: 'front-top', label: 'Front 1 (top)', face: 'front', c: [0.105, 0.37, CASE.D], size: 0.14 },
-  { id: 'front-mid', label: 'Front 2 (middle)', face: 'front', c: [0.105, 0.23, CASE.D], size: 0.14 },
-  { id: 'front-low', label: 'Front 3 (bottom)', face: 'front', c: [0.105, 0.09, CASE.D], size: 0.14 },
-  { id: 'top-front', label: 'Top 1 (front)', face: 'top', c: [0.09, CASE.H, 0.35], size: 0.14 },
-  { id: 'top-mid', label: 'Top 2 (middle)', face: 'top', c: [0.09, CASE.H, 0.215], size: 0.14 },
-  { id: 'top-rear', label: 'Top 3 (rear)', face: 'top', c: [0.09, CASE.H, 0.08], size: 0.14 },
+  { id: 'front-top', label: 'Front Top', face: 'front', c: [0.105, 0.37, CASE.D], size: 0.14 },
+  { id: 'front-mid', label: 'Front Middle', face: 'front', c: [0.105, 0.23, CASE.D], size: 0.14 },
+  { id: 'front-low', label: 'Front Bottom', face: 'front', c: [0.105, 0.09, CASE.D], size: 0.14 },
+  { id: 'top-front', label: 'Top Front', face: 'top', c: [0.09, CASE.H, 0.35], size: 0.14 },
+  { id: 'top-mid', label: 'Top Middle', face: 'top', c: [0.09, CASE.H, 0.215], size: 0.14 },
+  { id: 'top-rear', label: 'Top Rear', face: 'top', c: [0.09, CASE.H, 0.08], size: 0.14 },
   { id: 'rear', label: 'Rear', face: 'rear', c: [0.1, 0.345, 0], size: 0.14 },
   { id: 'bottom', label: 'Bottom', face: 'bottom', c: [0.105, 0, 0.36], size: 0.14 },
 ];
@@ -129,7 +129,7 @@ export const GPU_BLOWER = {
 const B = GPU_BLOWER;
 export const GPUS = {
   blower: {
-    label: 'Workstation blower (267 mm, dual-slot)',
+    label: 'Workstation Blower',
     power: 300,
     parts: [
       { id: 'blower-pcb', kind: 'solid', min: [B.x0 + 0.002, B.pcb[0], 0.005], max: [W - 0.01, B.y1, B.finEnd] },
@@ -159,7 +159,7 @@ export const GPUS = {
     heat: { G0: 1.0, G1: 4.2, rjc: 0.05, cap: 9, tjMax: 90 },
   },
   openair: {
-    label: 'Gaming open-air (3 fans)',
+    label: 'Open-Air',
     power: 300,
     parts: [
       { id: 'gpu-pcb', kind: 'solid', min: [0.06, 0.245, 0.005], max: [W - 0.01, 0.253, 0.31] },
@@ -194,7 +194,7 @@ export const PSU = {
   // Efficiency vs load fraction (Titanium-class curve).
   eff: [[0, 0.82], [0.1, 0.9], [0.2, 0.92], [0.5, 0.94], [1, 0.91]],
 };
-export const PSU_MODES = { down: 'Fan down (fresh air from floor)', up: 'Fan up (draws case air)' };
+export const PSU_MODES = { down: 'Fan Down', up: 'Fan Up' };
 
 export function psuEfficiency(lf) {
   const e = PSU.eff;
@@ -235,12 +235,12 @@ export const PRESETS = {
     modes: { 'front-top': 'intake', 'front-mid': 'intake', 'front-low': 'intake', 'top-front': 'open', 'top-mid': 'exhaust', 'top-rear': 'exhaust', rear: 'exhaust', bottom: 'open' },
   },
   positive: {
-    label: 'Positive pressure',
+    label: 'Positive Pressure',
     hint: 'more intake than exhaust; filtered, less dust',
     modes: { 'front-top': 'intake', 'front-mid': 'intake', 'front-low': 'intake', 'top-front': 'blocked', 'top-mid': 'blocked', 'top-rear': 'open', rear: 'exhaust', bottom: 'intake' },
   },
   negative: {
-    label: 'Negative pressure',
+    label: 'Negative Pressure',
     hint: 'exhaust-heavy; air sneaks in through gaps',
     modes: { 'front-top': 'open', 'front-mid': 'intake', 'front-low': 'open', 'top-front': 'exhaust', 'top-mid': 'exhaust', 'top-rear': 'exhaust', rear: 'exhaust', bottom: 'open' },
   },
@@ -250,7 +250,7 @@ export const PRESETS = {
     modes: { 'front-top': 'blocked', 'front-mid': 'blocked', 'front-low': 'intake', 'top-front': 'exhaust', 'top-mid': 'exhaust', 'top-rear': 'exhaust', rear: 'blocked', bottom: 'intake' },
   },
   stock: {
-    label: 'Stock (rear only)',
+    label: 'Stock',
     hint: 'one rear exhaust, solid front',
     modes: { 'front-top': 'blocked', 'front-mid': 'blocked', 'front-low': 'blocked', 'top-front': 'open', 'top-mid': 'open', 'top-rear': 'open', rear: 'exhaust', bottom: 'blocked' },
   },
