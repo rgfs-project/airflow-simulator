@@ -250,6 +250,30 @@ const smooth = (a, b, x) => {
 
 
 /** Perforated honeycomb sheet sized for a w x h (m) panel; holes transparent. */
+/** Walnut veneer: warm brown with fine vertical grain. */
+function walnutTexture() {
+  const w = 64, h = 512;
+  const cv = document.createElement('canvas');
+  cv.width = w; cv.height = h;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#6b4128';
+  ctx.fillRect(0, 0, w, h);
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < 70; i++) {
+    const x = rnd() * w;
+    ctx.strokeStyle = rnd() > 0.5 ? `rgba(40,22,12,${0.15 + rnd() * 0.25})` : `rgba(150,100,65,${0.1 + rnd() * 0.2})`;
+    ctx.lineWidth = 0.6 + rnd() * 1.6;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    for (let y = 0; y <= h; y += 32) ctx.lineTo(x + Math.sin(y * 0.02 + i) * 1.5, y);
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function hexPanelTexture(w, h, hole, color = '#b9bdc3') {
   const ppm = 2600;
   const cw = Math.min(2048, Math.round(w * ppm));
@@ -376,7 +400,7 @@ export class CaseView {
     const [W, H, D] = this.dims;
     // Anodised aluminium frame along the 12 edges, plus rubber feet.
     const alu = new THREE.MeshStandardMaterial({ color: 0x2b2e35, roughness: 0.32, metalness: 0.85 });
-    const t = 0.008;
+    const t = 0.005;
     const bar = (sx, sy, sz, x, y, z) => {
       const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), alu);
       m.position.set(x, y, z);
@@ -385,13 +409,7 @@ export class CaseView {
     for (const y of [0, H]) for (const z of [0, D]) bar(W + t, t, t, W / 2, y, z);
     for (const x of [0, W]) for (const z of [0, D]) bar(t, H + t, t, x, H / 2, z);
     for (const x of [0, W]) for (const y of [0, H]) bar(t, t, D + t, x, y, D / 2);
-    const rubber = new THREE.MeshStandardMaterial({ color: 0x0c0c0e, roughness: 0.9, metalness: 0 });
-    const footGeo = new THREE.CylinderGeometry(0.013, 0.015, 0.012, 24);
-    for (const x of [0.03, W - 0.03]) for (const z of [0.035, D - 0.035]) {
-      const f = new THREE.Mesh(footGeo, rubber);
-      f.position.set(x, -0.0105, z);
-      this.group.add(f);
-    }
+    this.buildExterior();
 
     const panelMat = new THREE.MeshStandardMaterial({
       color: 0x262b35, roughness: 0.55, metalness: 0.5, transparent: true, opacity: 0.32,
@@ -478,6 +496,111 @@ export class CaseView {
       uv[n * 2 + 1] = p[pb] / scale / 3;
     }
     geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  }
+
+  /**
+   * Case exterior modelled on a Scandinavian-style mid-tower: a deep rounded
+   * front frame holding ten walnut slats, a perforated top with a solid front
+   * cap (brass power button, port row), glass side with a solid front strip,
+   * a rear pull tab and black feet with brass rings. No branding.
+   */
+  buildExterior() {
+    const g = this.group;
+    const [W, H, D] = this.dims;
+    const black = new THREE.MeshStandardMaterial({ color: 0x1b1c1e, roughness: 0.75, metalness: 0.15 });
+    const inner = new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: 0.9, metalness: 0.05, side: THREE.DoubleSide });
+    const brass = new THREE.MeshStandardMaterial({ color: 0xb8913f, roughness: 0.35, metalness: 0.9 });
+    brass.userData.keep = true;
+    const walnut = new THREE.MeshStandardMaterial({ map: walnutTexture(), roughness: 0.62, metalness: 0 });
+    walnut.userData.keep = true;
+    const leather = new THREE.MeshStandardMaterial({ color: 0x7a4527, roughness: 0.8, metalness: 0 });
+    leather.userData.keep = true;
+
+    const rr = (sh, x0, y0, x1, y1, r, hole = false) => {
+      const p = hole ? new THREE.Path() : sh;
+      p.moveTo(x0 + r, y0);
+      p.lineTo(x1 - r, y0); p.quadraticCurveTo(x1, y0, x1, y0 + r);
+      p.lineTo(x1, y1 - r); p.quadraticCurveTo(x1, y1, x1 - r, y1);
+      p.lineTo(x0 + r, y1); p.quadraticCurveTo(x0, y1, x0, y1 - r);
+      p.lineTo(x0, y0 + r); p.quadraticCurveTo(x0, y0, x0 + r, y0);
+      if (hole) sh.holes.push(p);
+      return p;
+    };
+
+    // Front frame: rounded outer rim, deep recess, slats inside.
+    const bz = 0.032; // frame depth in front of the interior
+    const m = 0.006;  // rim width
+    const x0 = -0.006, x1 = W + 0.006, y0 = -0.004, y1 = H + 0.006;
+    const frame = new THREE.Shape();
+    rr(frame, x0, y0, x1, y1, 0.016);
+    rr(frame, x0 + m, y0 + m, x1 - m, y1 - m, 0.011, true);
+    const fGeo = new THREE.ExtrudeGeometry(frame, { depth: bz, bevelEnabled: true, bevelThickness: 0.0015, bevelSize: 0.0015, bevelSegments: 3, curveSegments: 12 });
+    fGeo.translate(0, 0, D);
+    g.add(new THREE.Mesh(fGeo, black));
+    // Dark filter at the back of the recess (behind the slats, in front of the fans).
+    const filter = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0 - 2 * m, y1 - y0 - 2 * m), inner);
+    filter.position.set((x0 + x1) / 2, (y0 + y1) / 2, D + 0.004);
+    filter.material = inner.clone();
+    filter.material.transparent = true;
+    filter.material.opacity = 0.55;
+    filter.material.depthWrite = false;
+    g.add(filter);
+    this.panelMeshes.push(filter);
+    // Ten walnut slats with rounded ends.
+    const n = 10, sw = 0.0105, sd = 0.012;
+    const span = x1 - x0 - 2 * m - 0.012;
+    const slatGeo = new THREE.BoxGeometry(sw, y1 - y0 - 2 * m - 0.014, sd);
+    for (let i = 0; i < n; i++) {
+      const sx = x0 + m + 0.006 + sw / 2 + (i * (span - sw)) / (n - 1);
+      const slat = new THREE.Mesh(slatGeo, walnut);
+      slat.position.set(sx, (y0 + y1) / 2, D + bz - sd / 2 - 0.003);
+      g.add(slat);
+    }
+
+    // Top: solid front cap with power button and ports; perforated mesh behind it.
+    const capD = 0.1;
+    const cap = new THREE.Shape();
+    rr(cap, x0, D - capD, x1, D + bz, 0.008);
+    const capGeo = new THREE.ExtrudeGeometry(cap, { depth: 0.008, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 3 });
+    capGeo.rotateX(Math.PI / 2);   // shape (x, y) -> (x, z), depth -> -y
+    capGeo.translate(0, H + 0.008, 0);
+    g.add(new THREE.Mesh(capGeo, black));
+    const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.0055, 0.0055, 0.0018, 32), brass);
+    btn.position.set(W * 0.28, H + 0.0105, D - capD * 0.45);
+    g.add(btn);
+    for (let i = 0; i < 5; i++) {
+      const port = new THREE.Mesh(new THREE.BoxGeometry(i < 2 ? 0.0028 : 0.006, 0.001, 0.0028), brass);
+      port.position.set(W * 0.38 + i * 0.016, H + 0.0098, D - capD * 0.45);
+      g.add(port);
+    }
+    const meshTop = new THREE.MeshStandardMaterial({
+      map: hexPanelTexture(D - capD + 0.004, W + 0.012, 0.0022, '#1d1e21'), transparent: true, depthWrite: false,
+      side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1,
+    });
+    const top = planeRect(1, H + 0.007, x0, x1, -0.004, D - capD, meshTop);
+    g.add(top);
+    this.panelMeshes.push(top);
+
+    // Glass side: solid strip over the front quarter (the glass ends there).
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(0.004, H + 0.01, capD - 0.004), black);
+    strip.position.set(-0.004, H / 2 + 0.001, D - capD / 2 + 0.002);
+    g.add(strip);
+    this.panelMeshes.push(strip);
+
+    // Bottom trim and feet: black cylinder with a brushed brass ring.
+    g.add(boxMesh([x0, -0.006, -0.003], [x1, 0, D + 0.004], black));
+    const footGeo = new THREE.CylinderGeometry(0.0125, 0.0125, 0.008, 32);
+    const ringGeo = new THREE.CylinderGeometry(0.0128, 0.0128, 0.003, 32);
+    for (const x of [0.032, W - 0.032]) for (const z of [0.04, D - 0.01]) {
+      const f = new THREE.Mesh(footGeo, black);
+      f.position.set(x, -0.006 - 0.004, z);
+      const ring = new THREE.Mesh(ringGeo, brass);
+      ring.position.set(x, -0.0155, z);
+      g.add(f, ring);
+    }
+
+    // Rear pull tab.
+    g.add(boxMesh([W / 2 - 0.012, H - 0.002, -0.006], [W / 2 + 0.012, H + 0.008, 0], leather));
   }
 
   buildParts() {
@@ -926,6 +1049,7 @@ export class CaseView {
       for (const m of mats) {
         if (!m || seen.has(m) || !m.isMeshStandardMaterial) continue;
         seen.add(m);
+        if (m.userData.keep) continue; // walnut slats and brass accents stay in colour
         m.color.getHSL(hsl);
         const glass = m.transparent && m.opacity < 0.12;
         const smoked = m.transparent && !m.map && m.opacity >= 0.12 && m.opacity < 0.6;
