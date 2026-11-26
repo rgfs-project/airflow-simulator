@@ -96,6 +96,7 @@ function Legend() {
 
 function Pills() {
   const v = useStore((s) => s.view);
+  const flat = useStore((s) => s.flat);
   if (!v) return <div id="overlay-bl" />;
   const pill = (key, label, onClick, toggles = true) => (
     <button
@@ -108,7 +109,7 @@ function Pills() {
     <div id="overlay-bl">
       {pill('particles', 'Streaks', () => setView({ particles: !v.particles }))}
       {pill('color', COLOR_NAMES[v.color], () => setView({ color: order[(order.indexOf(v.color) + 1) % order.length], particles: true }), false)}
-      {pill('slice', 'Plane', () => setView({ slice: !v.slice }))}
+      {flat && pill('slice', 'Plane', () => setView({ slice: !v.slice }))}
       {pill('panels', 'Panels', () => setView({ panels: !v.panels }))}
     </div>
   );
@@ -332,10 +333,10 @@ function Settings({ onClose }) {
           <div>
             <h3 className="eyebrow">Cross-section</h3>
             <Field label="Field">
-              <Seg options={[['speed', 'Speed'], ['temperature', 'Temperature'], ['pressure', 'Pressure']]} value={v.sliceField} onPick={(c) => setView({ sliceField: c, slice: true })} />
+              <Seg options={[['speed', 'Speed'], ['temperature', 'Temperature'], ['pressure', 'Pressure']]} value={v.sliceField} onPick={(c) => setView({ sliceField: c })} />
             </Field>
             <Field label="Axis">
-              <Seg options={[['0', 'Side'], ['1', 'Top'], ['2', 'Front']]} value={v.sliceAxis} onPick={(c) => setView({ sliceAxis: +c, slice: true })} />
+              <Seg options={[['0', 'Side'], ['1', 'Top'], ['2', 'Front']]} value={v.sliceAxis} onPick={(c) => setView({ sliceAxis: +c })} />
             </Field>
             <Slider label="Position" min={0} max={1} step={0.01} value={v.slicePos} fmt={pct} onChange={(x) => setView({ slicePos: x })} />
           </div>

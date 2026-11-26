@@ -191,6 +191,7 @@ function setFlat(on) {
     camera.far = 20;
   } else {
     if (flatSaved) Object.assign(state.view, flatSaved);
+    state.view.slice = false; // the plane only exists in the flat view
     camera.fov = 36;
     camera.far = 8;
   }
