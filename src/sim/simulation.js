@@ -1,6 +1,6 @@
 import { FluidGrid, FIXED, VENT, FREE } from './fluid.js';
 import {
-  CASE, SLOTS, FACES, CASE_FAN, VENT_K, FIXED_VENTS, PARTS, PLATES,
+  CASE, SLOTS, FACES, CASE_FAN, FAN_SPECS, VENT_K, FIXED_VENTS, PARTS, PLATES,
   INTERNAL_FANS, HEAT_GROUPS, PRESETS, CFM_PER_M3S, GPUS, DEFAULT_GPU, PSU, psuLayout, psuEfficiency,
 } from './model.js';
 
@@ -240,8 +240,8 @@ export class Simulation {
         const dir = mode === 'exhaust' ? outward : -outward;
         this.addFan({
           id: slot.id, kind: 'case', slot, mode, axis, plane, dir,
-          ca, cb, radius: CASE_FAN.radius, hub: CASE_FAN.hub,
-          qMax: CASE_FAN.qMax, pMax: CASE_FAN.pMax,
+          ca, cb, radius: (FAN_SPECS[slot.fan] || CASE_FAN).radius, hub: (FAN_SPECS[slot.fan] || CASE_FAN).hub,
+          qMax: (FAN_SPECS[slot.fan] || CASE_FAN).qMax, pMax: (FAN_SPECS[slot.fan] || CASE_FAN).pMax,
         }, old);
       }
     }

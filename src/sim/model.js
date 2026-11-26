@@ -5,22 +5,21 @@
 //   y: 0 = floor,             H = roof
 //   z: 0 = rear panel,        D = front panel
 
-export const CASE = { W: 0.21, H: 0.46, D: 0.44 };
+// Interior of a mid-tower measuring 434 x 215 x 450 mm (L x W x H, without feet):
+// the deep front frame (~32 mm) and top/bottom trim sit outside this volume.
+export const CASE = { W: 0.21, H: 0.44, D: 0.40 };
 
 export const CFM_PER_M3S = 2118.88;
 
 // Fan slots in the case walls. `face` names the wall, `c` is the slot center
-// in case coordinates, `size` is the fan frame size.
-// 140 x 140 x 25 mm fans everywhere (front 3, top 3, rear 1, bottom 1).
+// in case coordinates, `size` is the fan frame size, `fan` the fan model.
+// Case mounts: front 2 x 140 mm, top 2 x 140 mm, rear 1 x 120 mm, no bottom mount.
 export const SLOTS = [
-  { id: 'front-top', label: 'Front Top', face: 'front', c: [0.105, 0.37, CASE.D], size: 0.14 },
-  { id: 'front-mid', label: 'Front Middle', face: 'front', c: [0.105, 0.23, CASE.D], size: 0.14 },
-  { id: 'front-low', label: 'Front Bottom', face: 'front', c: [0.105, 0.09, CASE.D], size: 0.14 },
-  { id: 'top-front', label: 'Top Front', face: 'top', c: [0.09, CASE.H, 0.35], size: 0.14 },
-  { id: 'top-mid', label: 'Top Middle', face: 'top', c: [0.09, CASE.H, 0.215], size: 0.14 },
-  { id: 'top-rear', label: 'Top Rear', face: 'top', c: [0.09, CASE.H, 0.08], size: 0.14 },
-  { id: 'rear', label: 'Rear', face: 'rear', c: [0.1, 0.345, 0], size: 0.14 },
-  { id: 'bottom', label: 'Bottom', face: 'bottom', c: [0.105, 0, 0.36], size: 0.14 },
+  { id: 'front-top', label: 'Front Top', face: 'front', c: [0.105, 0.335, CASE.D], size: 0.14, fan: 'a14' },
+  { id: 'front-low', label: 'Front Bottom', face: 'front', c: [0.105, 0.19, CASE.D], size: 0.14, fan: 'a14' },
+  { id: 'top-front', label: 'Top Front', face: 'top', c: [0.09, CASE.H, 0.215], size: 0.14, fan: 'a14' },
+  { id: 'top-rear', label: 'Top Rear', face: 'top', c: [0.09, CASE.H, 0.075], size: 0.14, fan: 'a14' },
+  { id: 'rear', label: 'Rear', face: 'rear', c: [0.1, 0.345, 0], size: 0.12, fan: 'a12' },
 ];
 
 // Outward normal axis/sign of each wall.
@@ -35,8 +34,14 @@ export const FACES = {
 
 export const SLOT_MODES = ['intake', 'exhaust', 'open', 'blocked'];
 
-// 140 x 140 x 25 mm case fan at 100 % duty (1500 rpm): ~140 m3/h, ~2.2 mm H2O.
-export const CASE_FAN = { qMax: 0.039, pMax: 21.7, radius: 0.0675, hub: 0.02 };
+// Case fans at 100 % duty (manufacturer data sheets):
+//   a14: 140 x 140 x 25 mm, 1500 rpm, 155.6 m3/h, 2.56 mm H2O (25.1 Pa)
+//   a12: 120 x 120 x 25 mm, 2000 rpm, 102.1 m3/h, 2.34 mm H2O (22.9 Pa)
+export const FAN_SPECS = {
+  a14: { qMax: 155.6 / 3600, pMax: 2.56 * 9.80665, radius: 0.0675, hub: 0.021 },
+  a12: { qMax: 102.1 / 3600, pMax: 2.34 * 9.80665, radius: 0.057, hub: 0.02 },
+};
+export const CASE_FAN = FAN_SPECS.a14;
 
 // Vent conductances in (m/s of face velocity) per Pa of pressure difference.
 export const VENT_K = {
@@ -94,9 +99,9 @@ export const PLATES = [
 
 // Fans that live inside the case (coolers). `dir` is the push direction.
 export const INTERNAL_FANS = [
-  // Push-pull pair of 120 x 25 mm fans (~60 CFM, ~2.3 mm H2O each at 2000 rpm).
-  { id: 'cpu-fan', group: 'cpu', axis: 2, dir: -1, at: 0.199, c: [0.1, 0.345], radius: 0.057, hub: 0.02, qMax: 0.0284, pMax: 23 },
-  { id: 'cpu-fan-rear', group: 'cpu', axis: 2, dir: -1, at: 0.141, c: [0.1, 0.345], radius: 0.057, hub: 0.02, qMax: 0.0284, pMax: 23, pull: true },
+  // Push-pull pair of 120 x 25 mm fans (102.1 m3/h, 2.34 mm H2O each at 2000 rpm).
+  { id: 'cpu-fan', group: 'cpu', axis: 2, dir: -1, at: 0.199, c: [0.1, 0.345], radius: 0.057, hub: 0.02, qMax: 102.1 / 3600, pMax: 2.34 * 9.80665 },
+  { id: 'cpu-fan-rear', group: 'cpu', axis: 2, dir: -1, at: 0.141, c: [0.1, 0.345], radius: 0.057, hub: 0.02, qMax: 102.1 / 3600, pMax: 2.34 * 9.80665, pull: true },
 ];
 
 // Heat-producing components.
@@ -231,37 +236,37 @@ export function psuLayout(mode) {
 export const PRESETS = {
   balanced: {
     label: 'Balanced',
-    hint: '3 front intake, top + rear exhaust',
-    modes: { 'front-top': 'intake', 'front-mid': 'intake', 'front-low': 'intake', 'top-front': 'open', 'top-mid': 'exhaust', 'top-rear': 'exhaust', rear: 'exhaust', bottom: 'open' },
+    hint: '2 front intake, top rear + rear exhaust',
+    modes: { 'front-top': 'intake', 'front-low': 'intake', 'top-front': 'open', 'top-rear': 'exhaust', rear: 'exhaust' },
   },
   positive: {
     label: 'Positive Pressure',
-    hint: 'more intake than exhaust; filtered, less dust',
-    modes: { 'front-top': 'intake', 'front-mid': 'intake', 'front-low': 'intake', 'top-front': 'blocked', 'top-mid': 'blocked', 'top-rear': 'open', rear: 'exhaust', bottom: 'intake' },
+    hint: 'more intake than exhaust',
+    modes: { 'front-top': 'intake', 'front-low': 'intake', 'top-front': 'blocked', 'top-rear': 'open', rear: 'exhaust' },
   },
   negative: {
     label: 'Negative Pressure',
-    hint: 'exhaust-heavy; air sneaks in through gaps',
-    modes: { 'front-top': 'open', 'front-mid': 'intake', 'front-low': 'open', 'top-front': 'exhaust', 'top-mid': 'exhaust', 'top-rear': 'exhaust', rear: 'exhaust', bottom: 'open' },
+    hint: 'exhaust-heavy',
+    modes: { 'front-top': 'open', 'front-low': 'intake', 'top-front': 'exhaust', 'top-rear': 'exhaust', rear: 'exhaust' },
   },
   chimney: {
     label: 'Chimney',
-    hint: 'bottom/front in, all top out',
-    modes: { 'front-top': 'blocked', 'front-mid': 'blocked', 'front-low': 'intake', 'top-front': 'exhaust', 'top-mid': 'exhaust', 'top-rear': 'exhaust', rear: 'blocked', bottom: 'intake' },
+    hint: 'low front in, all top out',
+    modes: { 'front-top': 'blocked', 'front-low': 'intake', 'top-front': 'exhaust', 'top-rear': 'exhaust', rear: 'blocked' },
   },
   stock: {
     label: 'Stock',
-    hint: 'one rear exhaust, solid front',
-    modes: { 'front-top': 'blocked', 'front-mid': 'blocked', 'front-low': 'blocked', 'top-front': 'open', 'top-mid': 'open', 'top-rear': 'open', rear: 'exhaust', bottom: 'blocked' },
+    hint: 'rear exhaust only',
+    modes: { 'front-top': 'open', 'front-low': 'open', 'top-front': 'open', 'top-rear': 'open', rear: 'exhaust' },
   },
   backwards: {
     label: 'Backwards',
     hint: 'fans fighting the coolers',
-    modes: { 'front-top': 'exhaust', 'front-mid': 'exhaust', 'front-low': 'exhaust', 'top-front': 'intake', 'top-mid': 'intake', 'top-rear': 'intake', rear: 'intake', bottom: 'blocked' },
+    modes: { 'front-top': 'exhaust', 'front-low': 'exhaust', 'top-front': 'intake', 'top-rear': 'intake', rear: 'intake' },
   },
   passive: {
     label: 'Passive',
-    hint: 'no case fans, open mesh',
-    modes: { 'front-top': 'open', 'front-mid': 'open', 'front-low': 'open', 'top-front': 'open', 'top-mid': 'open', 'top-rear': 'open', rear: 'open', bottom: 'open' },
+    hint: 'no case fans',
+    modes: { 'front-top': 'open', 'front-low': 'open', 'top-front': 'open', 'top-rear': 'open', rear: 'open' },
   },
 };

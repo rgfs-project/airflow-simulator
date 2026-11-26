@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SLOTS, FACES, PARTS, INTERNAL_FANS, FIXED_VENTS, GPUS, GPU_BLOWER, CASE_FAN, CPU_COOLER, RAM, PSU, psuLayout } from '../sim/model.js';
+import { SLOTS, FACES, PARTS, INTERNAL_FANS, FIXED_VENTS, GPUS, GPU_BLOWER, CASE_FAN, FAN_SPECS, CPU_COOLER, RAM, PSU, psuLayout } from '../sim/model.js';
 import { heat } from './colormap.js';
 
 const PLANE_AXES = [[1, 2], [0, 2], [0, 1]];
@@ -971,7 +971,8 @@ export class CaseView {
       root.position.copy(c);
       this.group.add(root);
 
-      const fan = makeFan({ size: slot.size, radius: CASE_FAN.radius, hub: CASE_FAN.hub });
+      const spec = FAN_SPECS[slot.fan] || CASE_FAN;
+      const fan = makeFan({ size: slot.size, radius: spec.radius, hub: spec.hub });
       fan.group.position.copy(outward).multiplyScalar(-0.0135);
       root.add(fan.group);
 
