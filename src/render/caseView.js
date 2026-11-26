@@ -557,27 +557,51 @@ export class CaseView {
       g.add(slat);
     }
 
-    // Top: solid front cap with power button and ports; perforated mesh behind it.
+    // Top: solid front cap, flush with the mesh; only its front edge curves into the frame.
     const capD = 0.1;
+    const cz0 = D - capD, cz1 = D + bz, cr = 0.016;
     const cap = new THREE.Shape();
-    rr(cap, x0, D - capD, x1, D + bz, 0.008);
-    const capGeo = new THREE.ExtrudeGeometry(cap, { depth: 0.008, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 3 });
+    cap.moveTo(x0, cz0);
+    cap.lineTo(x1, cz0);
+    cap.lineTo(x1, cz1 - cr); cap.quadraticCurveTo(x1, cz1, x1 - cr, cz1);
+    cap.lineTo(x0 + cr, cz1); cap.quadraticCurveTo(x0, cz1, x0, cz1 - cr);
+    cap.lineTo(x0, cz0);
+    const capGeo = new THREE.ExtrudeGeometry(cap, { depth: 0.005, bevelEnabled: true, bevelThickness: 0.001, bevelSize: 0.001, bevelSegments: 2, curveSegments: 12 });
     capGeo.rotateX(Math.PI / 2);   // shape (x, y) -> (x, z), depth -> -y
-    capGeo.translate(0, H + 0.008, 0);
+    const topY = H + 0.007;
+    capGeo.translate(0, topY - 0.001, 0);
     g.add(new THREE.Mesh(capGeo, black));
-    const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.0055, 0.0055, 0.0018, 32), brass);
-    btn.position.set(W * 0.28, H + 0.0105, D - capD * 0.45);
-    g.add(btn);
-    for (let i = 0; i < 5; i++) {
-      const port = new THREE.Mesh(new THREE.BoxGeometry(i < 2 ? 0.0028 : 0.006, 0.001, 0.0028), brass);
-      port.position.set(W * 0.38 + i * 0.016, H + 0.0098, D - capD * 0.45);
-      g.add(port);
+
+    // Front I/O row: power button, 2 audio jacks, 2 USB-A, USB-C, joined by a fine line.
+    const hole = new THREE.MeshStandardMaterial({ color: 0x0a0a0b, roughness: 0.6, metalness: 0.2 });
+    hole.userData.keep = true;
+    const lineMat = new THREE.MeshStandardMaterial({ color: 0x0f0f10, roughness: 0.7, metalness: 0.1 });
+    lineMat.userData.keep = true;
+    const rowZ = cz0 + 0.6 * (cz1 - cz0);
+    const at = (f) => x0 + f * (x1 - x0);
+    const yS = topY + 0.0002; // just above the cap surface
+    const add = (geo, mat, x, y = yS) => { const o = new THREE.Mesh(geo, mat); o.position.set(x, y, rowZ); g.add(o); return o; };
+    // Fine line from the button to the right, with a brass tail past the last port.
+    add(new THREE.BoxGeometry(at(0.66) - at(0.14), 0.0003, 0.0005), lineMat, (at(0.14) + at(0.66)) / 2);
+    add(new THREE.BoxGeometry(at(0.88) - at(0.66), 0.0003, 0.0005), brass, (at(0.66) + at(0.88)) / 2);
+    // Power button: brass disc in a dark recess ring.
+    add(new THREE.CylinderGeometry(0.0062, 0.0062, 0.0004, 40), hole, at(0.14));
+    add(new THREE.CylinderGeometry(0.0052, 0.0052, 0.0012, 40), brass, at(0.14), yS + 0.0004);
+    // Audio jacks: dark holes with a brass rim.
+    for (const f of [0.26, 0.33]) {
+      add(new THREE.CylinderGeometry(0.0021, 0.0021, 0.0004, 24), brass, at(f));
+      add(new THREE.CylinderGeometry(0.0014, 0.0014, 0.0006, 24), hole, at(f));
     }
+    // USB-A and USB-C ports.
+    for (const f of [0.43, 0.53]) add(new THREE.BoxGeometry(0.0075, 0.0006, 0.003), hole, at(f));
+    const usbc = add(new THREE.CylinderGeometry(0.0011, 0.0011, 0.0006, 16), hole, at(0.635) - 0.0018);
+    add(new THREE.BoxGeometry(0.0036, 0.0006, 0.0022), hole, at(0.635));
+    add(usbc.geometry, hole, at(0.635) + 0.0018);
     const meshTop = new THREE.MeshStandardMaterial({
       map: hexPanelTexture(D - capD + 0.004, W + 0.012, 0.0022, '#1d1e21'), transparent: true, depthWrite: false,
       side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1,
     });
-    const top = planeRect(1, H + 0.007, x0, x1, -0.004, D - capD, meshTop);
+    const top = planeRect(1, topY, x0, x1, -0.004, cz0, meshTop);
     g.add(top);
     this.panelMeshes.push(top);
 
@@ -743,9 +767,8 @@ export class CaseView {
     }
     // Front face of the shroud.
     g.add(boxMesh([0.004, 0, zEnd - 0.003], [W - 0.004, top, zEnd], metal));
-    // Perforated side facing the glass.
-    const side = new THREE.MeshStandardMaterial({ map: hexPanelTexture(zEnd, top, 0.012, '#2c3038'), transparent: true, depthWrite: false, side: THREE.DoubleSide, metalness: 0.6, roughness: 0.45 });
-    g.add(planeRect(0, 0.005, 0, top - 0.003, 0.003, zEnd - 0.003, side));
+    // Solid, smooth side facing the glass (hides the PSU, like the real basement cover).
+    g.add(boxMesh([0.002, 0.001, 0.003], [0.006, top, zEnd], metal));
 
     // ---- The PSU itself ----
     const [x0, y0, z0] = [PSU.min[0], 0.006, 0.002];
