@@ -54,5 +54,7 @@ src/sim/fluid.js        MAC grid solver (advection, forces, projection, heat tra
 src/sim/simulation.js   builds the grid from the model; fans, heat exchange, stats
 src/sim/worker.js       runs the simulation in a Web Worker and streams snapshots
 src/render/*.js         Three.js case model, particle streaks, slice plane, colour maps
-src/ui.js, src/main.js  side panel, HUD, picking, main loop
+src/ui/*.jsx           React UI (top bar, overlays, cards, settings)
+src/ui/store.js         small store linking the engine to React
+src/engine.js           Three.js scene, picking, main loop, worker control
 ```

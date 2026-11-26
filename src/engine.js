@@ -6,8 +6,7 @@ import { PRESETS, SLOTS, SLOT_MODES, CFM_PER_M3S, GPUS, DEFAULT_GPU } from './si
 import { CaseView } from './render/caseView.js';
 import { Particles } from './render/particles.js';
 import { Slice } from './render/slice.js';
-import { buildUI } from './ui.js';
-import './style.css';
+import { buildUI } from './ui/store.js';
 
 // ---------------------------------------------------------------------------
 // Device profile
