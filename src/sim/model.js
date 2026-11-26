@@ -15,10 +15,11 @@ export const CFM_PER_M3S = 2118.88;
 // in case coordinates, `size` is the fan frame size, `fan` the fan model.
 // Mounts: 3 x 140 mm front, 2 x 140 mm top, 1 x 140 mm rear, 1 x 140 mm bottom
 // (under the open front section, ahead of the PSU shroud).
+// Front fans sit 144 mm apart (4 mm between frames); the lowest clears the bottom fan.
 export const SLOTS = [
-  { id: 'front-top', label: 'Front Top', face: 'front', c: [0.105, 0.365, CASE.D], size: 0.14, fan: 'a14' },
-  { id: 'front-mid', label: 'Front Middle', face: 'front', c: [0.105, 0.225, CASE.D], size: 0.14, fan: 'a14' },
-  { id: 'front-low', label: 'Front Bottom', face: 'front', c: [0.105, 0.085, CASE.D], size: 0.14, fan: 'a14' },
+  { id: 'front-top', label: 'Front Top', face: 'front', c: [0.105, 0.388, CASE.D], size: 0.14, fan: 'a14' },
+  { id: 'front-mid', label: 'Front Middle', face: 'front', c: [0.105, 0.244, CASE.D], size: 0.14, fan: 'a14' },
+  { id: 'front-low', label: 'Front Bottom', face: 'front', c: [0.105, 0.1, CASE.D], size: 0.14, fan: 'a14' },
   { id: 'top-front', label: 'Top Front', face: 'top', c: [0.09, CASE.H, 0.27], size: 0.14, fan: 'a14' },
   { id: 'top-rear', label: 'Top Rear', face: 'top', c: [0.09, CASE.H, 0.12], size: 0.14, fan: 'a14' },
   { id: 'rear', label: 'Rear', face: 'rear', c: [0.1, 0.345, 0], size: 0.14, fan: 'a14' },

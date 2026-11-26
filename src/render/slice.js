@@ -1,7 +1,13 @@
 import * as THREE from 'three';
 import { heat, turbo, diverging } from './colormap.js';
+import { PSU } from '../sim/model.js';
 
 const PLANE_AXES = [[1, 2], [0, 2], [0, 1]];
+
+const inPsu = (idx, h) => [0, 1, 2].every((k) => {
+  const x = (idx[k] + 0.5) * h;
+  return x > PSU.min[k] && x < PSU.max[k];
+});
 
 /** A colored cross-section through the grid showing speed, temperature or pressure. */
 export class Slice {
@@ -97,7 +103,7 @@ export class Slice {
       for (let b = 0; b < this.th; b++) for (let a = 0; a < this.tw; a++) {
         idx[pa] = a; idx[pb] = b;
         const cell = f.ci(idx[0], idx[1], idx[2]);
-        if (!f.solid[cell]) vals.push(Math.abs(f.p[cell] * this.pScale));
+        if (!f.solid[cell] && !inPsu(idx, f.h)) vals.push(Math.abs(f.p[cell] * this.pScale));
       }
       vals.sort((x, y) => x - y);
       if (vals.length) pMax = Math.max(0.5, vals[Math.floor(vals.length * 0.95)]);
@@ -108,8 +114,9 @@ export class Slice {
         idx[pa] = a; idx[pb] = b;
         const cell = f.ci(idx[0], idx[1], idx[2]);
         const o = (a + b * this.tw) * 4;
-        if (f.solid[cell]) {
-          d[o] = 40; d[o + 1] = 44; d[o + 2] = 52; d[o + 3] = 200;
+        // Only case air: solid parts and the sealed PSU interior stay clear.
+        if (f.solid[cell] || inPsu(idx, f.h)) {
+          d[o] = 0; d[o + 1] = 0; d[o + 2] = 0; d[o + 3] = 0;
           continue;
         }
         if (this.mode === 'speed') {

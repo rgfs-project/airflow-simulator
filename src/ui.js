@@ -250,7 +250,6 @@ export function buildUI(state, h) {
         el('div', {},
           el('h3', { class: 'eyebrow' }, 'Cross-section'),
           el('div', { class: 'ctl' }, el('label', {}, 'Field'), viewCtl.sliceField),
-          el('div', { class: 'ctl' }, el('label', {}, 'Axis'), viewCtl.sliceAxis),
           viewCtl.slicePos)),
       el('hr'),
       el('div', { class: 'cols' },
@@ -322,13 +321,15 @@ export function buildUI(state, h) {
       }
     }
     if (v.slice) {
-      if (v.sliceField === 'speed') legend.append(item('Plane Speed', turbo, '0', '3 m/s'));
-      else if (v.sliceField === 'temperature') legend.append(item('Plane Temperature', heat, 'Ambient', '+20°'));
+      let it;
+      if (v.sliceField === 'speed') it = item('Plane Speed', turbo, '0', '3 m/s');
+      else if (v.sliceField === 'temperature') it = item('Plane Temperature', heat, 'Ambient', '+20°');
       else {
-        const it = item('Plane Pressure', diverging, '−', '+', true);
+        it = item('Plane Pressure', diverging, '−', '+', true);
         it.querySelector('.ends').id = 'pressure-ends';
-        legend.append(it);
       }
+      it.classList.add('legend-plane');
+      legend.append(it);
     }
   }
   updateLegend(view);

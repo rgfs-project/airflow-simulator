@@ -938,7 +938,7 @@ export class CaseView {
       root.add(fan.group);
 
       const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(slot.size / 2 + 0.001, 0.0022, 8, 64),
+        new THREE.TorusGeometry(slot.size / 2 - 0.0025, 0.0022, 8, 64),
         new THREE.MeshBasicMaterial({ color: 0xffffff }),
       );
       ring.position.copy(outward).multiplyScalar(0.001);

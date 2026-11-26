@@ -161,6 +161,7 @@ button { -webkit-tap-highlight-color: transparent; }
   background: var(--glass); border: 1px solid var(--glass-line);
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); color: rgba(255, 255, 255, 0.8);
 }
+#legend.plane-off .legend-plane { display: none; }
 .legend-item .title { font-size: var(--fs-text); font-weight: 600; margin-bottom: 8px; }
 .legend-item .bar { height: 6px; border-radius: 3px; }
 .legend-item .ends { display: flex; justify-content: space-between; font-size: var(--fs-text); margin-top: 6px; color: rgba(255, 255, 255, 0.6); }
@@ -320,6 +321,7 @@ select:hover { background-color: var(--soft-hover); }
   #overlay-br .btn:nth-child(-n + 2) { display: none; }
   #tooltip { display: none !important; }
   #legend .legend-item:not(:last-child) { display: none; }
+  #legend.plane-off .legend-item:nth-last-child(2) { display: block; }
   input[type='range'] { height: 32px; }
   input[type='range']::-webkit-slider-thumb { width: 26px; height: 26px; margin-top: -11px; }
   .dialog { padding: 72px 22px 28px; border-radius: var(--r) var(--r) 0 0; max-height: 92dvh; align-self: end; }
