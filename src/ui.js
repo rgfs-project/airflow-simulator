@@ -218,7 +218,7 @@ export function buildUI(state, h) {
   side.append(card('Load & Hardware',
     slider({ label: 'Case Fans', min: 0, max: 1, step: 0.05, value: state.caseFanSpeed, fmt: (v) => `${Math.round(v * 100)}%`, onInput: (v) => h.onConfig({ caseFanSpeed: v }) }),
     slider({ label: 'CPU', min: 15, max: 300, step: 5, value: state.power.cpu, fmt: (v) => `${v} W`, onInput: (v) => h.onConfig({ power: { cpu: v } }) }),
-    slider({ label: 'GPU', min: 20, max: 500, step: 5, value: state.power.gpu, fmt: (v) => `${v} W`, onInput: (v) => h.onConfig({ power: { gpu: v } }) }),
+    slider({ label: 'GPU', min: 20, max: 650, step: 5, value: state.power.gpu, fmt: (v) => `${v} W`, onInput: (v) => h.onConfig({ power: { gpu: v } }) }),
     slider({ label: 'Ambient', min: 10, max: 40, step: 0.5, value: state.ambient, fmt: (v) => `${v.toFixed(1)}°C`, onInput: (v) => h.onConfig({ ambient: v }) }),
     toggle('Auto Cooler Fans', state.coolerAuto, (on) => { coolerSlider.hidden = on; h.onConfig({ coolerAuto: { cpu: on, gpu: on } }); }),
     coolerSlider,
