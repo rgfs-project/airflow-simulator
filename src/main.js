@@ -17,7 +17,7 @@ const quality = {
   pixelRatio: Math.min(window.devicePixelRatio, MOBILE ? 1.25 : 2),
   maxFps: MOBILE ? 30 : 0, // phones: cap rendering to save CPU, GPU and battery
   shadows: !MOBILE,
-  trail: MOBILE ? 10 : 14,
+  trail: MOBILE ? 8 : 14,
 };
 
 // ---------------------------------------------------------------------------
@@ -526,5 +526,7 @@ window.airflow = {
   slice,
   particles,
   controls,
+  renderer,
+  scene,
   CFM_PER_M3S,
 };

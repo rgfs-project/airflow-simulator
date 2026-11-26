@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { SLOTS, FACES, PARTS, INTERNAL_FANS, FIXED_VENTS, GPUS, GPU_BLOWER, GPU_FLOW, CASE_FAN, FAN_SPECS, CPU_COOLER, RAM, PSU, psuLayout } from '../sim/model.js';
 import { heat } from './colormap.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const PLANE_AXES = [[1, 2], [0, 2], [0, 1]];
 const MODE_COLORS = { intake: 0x38b6ff, exhaust: 0xff7a3d };
@@ -364,6 +365,7 @@ export class CaseView {
     this.buildSlots();
     this.buildInternalFans();
     this.applyClayStyle();
+    this.mergeStatic();
   }
 
   slotCenter(slot) {
@@ -1055,6 +1057,77 @@ export class CaseView {
         m.needsUpdate = true;
       }
     });
+  }
+
+  /**
+   * Cut draw calls: meshes that never move relative to each other and share a
+   * material are baked into one mesh. Each moving or toggled node (fan rotors,
+   * slot parts, removable panels) keeps its own merged children.
+   */
+  mergeStatic() {
+    const keepWhole = new Set(this.panelMeshes);
+    const anchors = new Set([this.group]);
+    for (const v of this.slots.values()) {
+      anchors.add(v.root); anchors.add(v.fan.group); anchors.add(v.fan.rotor);
+      for (const o of [v.ring, v.arrow, v.grill, v.plate, v.highlight]) keepWhole.add(o);
+    }
+    for (const f of this.internalFans) { anchors.add(f.group); anchors.add(f.rotor); }
+    for (const o of this.hitTargets) keepWhole.add(o);
+
+    this.group.updateMatrixWorld(true);
+    const buckets = new Map(); // anchor -> material -> meshes
+    const visit = (node, anchor) => {
+      for (const child of node.children) {
+        if (keepWhole.has(child)) continue;
+        if (anchors.has(child)) { visit(child, child); continue; }
+        const m = child.material;
+        if (child.isMesh && !child.isInstancedMesh && !child.children.length && !Array.isArray(m) && !m.transparent && child.visible) {
+          if (!buckets.has(anchor)) buckets.set(anchor, new Map());
+          const byMat = buckets.get(anchor);
+          if (!byMat.has(m)) byMat.set(m, []);
+          byMat.get(m).push(child);
+        }
+        visit(child, anchor);
+      }
+    };
+    visit(this.group, this.group);
+
+    const inv = new THREE.Matrix4();
+    const rel = new THREE.Matrix4();
+    for (const [anchor, byMat] of buckets) {
+      inv.copy(anchor.matrixWorld).invert();
+      for (const [mat, meshes] of byMat) {
+        if (meshes.length < 2) continue;
+        const needUv = !!mat.map;
+        const geos = meshes.map((mesh) => {
+          let g = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone();
+          for (const name of Object.keys(g.attributes)) {
+            if (name !== 'position' && name !== 'normal' && !(needUv && name === 'uv')) g.deleteAttribute(name);
+          }
+          if (!g.attributes.normal) g.computeVertexNormals();
+          g.morphAttributes = {};
+          rel.multiplyMatrices(inv, mesh.matrixWorld);
+          g.applyMatrix4(rel);
+          return g;
+        });
+        if (needUv && geos.some((g) => !g.attributes.uv)) continue;
+        const merged = mergeGeometries(geos, false);
+        geos.forEach((g) => g.dispose());
+        if (!merged) continue;
+        for (const mesh of meshes) mesh.removeFromParent();
+        const out = new THREE.Mesh(merged, mat);
+        out.userData.merged = true;
+        anchor.add(out);
+      }
+    }
+    // Drop groups left empty by the merge.
+    const prune = (node) => {
+      for (const child of [...node.children]) {
+        prune(child);
+        if (child.isGroup && !child.children.length && !anchors.has(child) && !keepWhole.has(child)) child.removeFromParent();
+      }
+    };
+    prune(this.group);
   }
 
   setModes(modes) {

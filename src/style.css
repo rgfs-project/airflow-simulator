@@ -292,7 +292,7 @@ select:hover { background-color: var(--soft-hover); }
   :root { --top: 60px; --pad: 14px; --fs-text: 16px; --fs-num: 34px; }
   body { overflow: auto; padding-top: calc(var(--top) + env(safe-area-inset-top)); }
   #topbar { position: fixed; top: 0; left: 0; right: 0; padding: env(safe-area-inset-top) 16px 0; height: calc(var(--top) + env(safe-area-inset-top)); }
-  .hide-sm, .pill-color { display: none; }
+  .hide-sm { display: none; }
   #main { display: block; height: auto; padding: 12px 12px calc(24px + env(safe-area-inset-bottom)); }
   #stage { flex: none; height: min(64svh, 560px); }
   #presetbar { padding: 14px 4px 18px; }
@@ -302,7 +302,20 @@ select:hover { background-color: var(--soft-hover); }
   .chip span:nth-child(2) { display: none; }
   .legend-item { width: 176px; padding: 10px 12px; }
   .swatches { grid-template-columns: 1fr; gap: 2px; }
-  #overlay-bl { max-width: calc(100% - var(--h) - var(--gap) - 2 * var(--pad)); }
+  /* One scrollable row of pills; no live chip or plane toggle on phones. */
+  #overlay-tl, .pill-slice { display: none; }
+  #overlay-bl {
+    right: calc(var(--h) + 2 * var(--gap) + var(--pad)); max-width: none; flex-wrap: nowrap;
+    overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; touch-action: pan-x;
+    left: 0; padding-left: var(--pad);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 var(--pad), #000 calc(100% - 44px), transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 var(--pad), #000 calc(100% - 44px), transparent);
+  }
+  #overlay-bl::-webkit-scrollbar { display: none; }
+  #overlay-bl .btn { flex: none; }
+  /* Blurring a live WebGL canvas every frame is expensive on phones: use solid tints instead. */
+  .btn.glass, .chip, .legend-item { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .btn.glass:not(.on), .legend-item { background: rgba(38, 39, 44, 0.88); }
   #overlay-br { flex-direction: column; }
   #overlay-br .btn:nth-child(-n + 2) { display: none; }
   #tooltip { display: none !important; }
@@ -326,7 +339,8 @@ select:hover { background-color: var(--soft-hover); }
     transform: rotate(45deg); transition: transform 0.2s;
   }
   .card[open] .chev::after { transform: rotate(225deg); margin-top: 4px; }
-  .card:not([open]) > summary { min-height: 68px; }
+  /* Same header height open or closed, so the title never jumps. */
+  .card > summary { height: 68px; min-height: 0; }
 }
 
 @media (max-width: 380px) {

@@ -61,7 +61,8 @@ function loop() {
     if (debt > sim.dt * maxSteps) debt = 0;
     if (steps) snapshot(snapshots++ % 5 === 0);
   }
-  setTimeout(loop, 8);
+  // Phones: tick at ~30 Hz so the worker (and snapshot garbage) doesn't starve the render thread.
+  setTimeout(loop, lowPower ? 30 : 8);
 }
 
 onmessage = (e) => {
