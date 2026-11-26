@@ -49,19 +49,6 @@ function Topbar({ onSettings }) {
 // ---------------------------------------------------------------------------
 // Stage overlays
 // ---------------------------------------------------------------------------
-function LiveChip() {
-  const paused = useStore((s) => s.paused);
-  const warmed = useStore((s) => s.warmed);
-  const cls = paused ? 'paused' : warmed ? '' : 'warming';
-  return (
-    <div id="overlay-tl">
-      <div className="chip">
-        <span className={`live ${cls}`}><i /><b>{paused ? 'Paused' : warmed ? 'Live' : 'Starting'}</b></span>
-      </div>
-    </div>
-  );
-}
-
 function LegendItem({ title, fn, lo, hi, signed }) {
   return (
     <div className="legend-item">
@@ -158,7 +145,6 @@ function Stage() {
     <section id="stage">
       {/* The engine appends its canvas here and drives #tooltip directly. */}
       <div id="viewport">
-        <LiveChip />
         <Legend />
         <Pills />
         <CameraButtons />
