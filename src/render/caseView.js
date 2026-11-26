@@ -250,29 +250,6 @@ const smooth = (a, b, x) => {
 
 
 /** Perforated honeycomb sheet sized for a w x h (m) panel; holes transparent. */
-/** Walnut veneer: warm brown with fine vertical grain. */
-function walnutTexture() {
-  const w = 64, h = 512;
-  const cv = document.createElement('canvas');
-  cv.width = w; cv.height = h;
-  const ctx = cv.getContext('2d');
-  ctx.fillStyle = '#6b4128';
-  ctx.fillRect(0, 0, w, h);
-  let seed = 7;
-  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  for (let i = 0; i < 70; i++) {
-    const x = rnd() * w;
-    ctx.strokeStyle = rnd() > 0.5 ? `rgba(40,22,12,${0.15 + rnd() * 0.25})` : `rgba(150,100,65,${0.1 + rnd() * 0.2})`;
-    ctx.lineWidth = 0.6 + rnd() * 1.6;
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    for (let y = 0; y <= h; y += 32) ctx.lineTo(x + Math.sin(y * 0.02 + i) * 1.5, y);
-    ctx.stroke();
-  }
-  const tex = new THREE.CanvasTexture(cv);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
 
 function hexPanelTexture(w, h, hole, color = '#b9bdc3') {
   const ppm = 2600;
@@ -400,7 +377,7 @@ export class CaseView {
     const [W, H, D] = this.dims;
     // Anodised aluminium frame along the 12 edges, plus rubber feet.
     const alu = new THREE.MeshStandardMaterial({ color: 0x2b2e35, roughness: 0.32, metalness: 0.85 });
-    const t = 0.005;
+    const t = 0.006;
     const bar = (sx, sy, sz, x, y, z) => {
       const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), alu);
       m.position.set(x, y, z);
@@ -499,132 +476,43 @@ export class CaseView {
   }
 
   /**
-   * Case exterior modelled on a Scandinavian-style mid-tower: a deep rounded
-   * front frame holding ten walnut slats, a perforated top with a solid front
-   * cap (brass power button, port row), glass side with a solid front strip,
-   * a rear pull tab and black feet with brass rings. No branding.
+   * Original minimal ATX airflow case: flush perforated front and top panels,
+   * a slim top-front control strip, glass side, solid right side, and a low
+   * plinth with rubber foot rails. The 12 edge bars come from buildShell().
    */
   buildExterior() {
     const g = this.group;
     const [W, H, D] = this.dims;
-    const black = new THREE.MeshStandardMaterial({ color: 0x1b1c1e, roughness: 0.75, metalness: 0.15 });
-    const inner = new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: 0.9, metalness: 0.05, side: THREE.DoubleSide });
-    const brass = new THREE.MeshStandardMaterial({ color: 0xb8913f, roughness: 0.35, metalness: 0.9 });
-    brass.userData.keep = true;
-    const walnut = new THREE.MeshStandardMaterial({ map: walnutTexture(), roughness: 0.62, metalness: 0 });
-    walnut.userData.keep = true;
-    const leather = new THREE.MeshStandardMaterial({ color: 0x7a4527, roughness: 0.8, metalness: 0 });
-    leather.userData.keep = true;
-
-    const rr = (sh, x0, y0, x1, y1, r, hole = false) => {
-      const p = hole ? new THREE.Path() : sh;
-      p.moveTo(x0 + r, y0);
-      p.lineTo(x1 - r, y0); p.quadraticCurveTo(x1, y0, x1, y0 + r);
-      p.lineTo(x1, y1 - r); p.quadraticCurveTo(x1, y1, x1 - r, y1);
-      p.lineTo(x0 + r, y1); p.quadraticCurveTo(x0, y1, x0, y1 - r);
-      p.lineTo(x0, y0 + r); p.quadraticCurveTo(x0, y0, x0 + r, y0);
-      if (hole) sh.holes.push(p);
-      return p;
-    };
-
-    // Front frame: rounded outer rim, deep recess, slats inside.
-    const bz = 0.032; // frame depth in front of the interior
-    const m = 0.006;  // rim width
-    const x0 = -0.006, x1 = W + 0.006, y0 = -0.004, y1 = H + 0.006;
-    const frame = new THREE.Shape();
-    rr(frame, x0, y0, x1, y1, 0.016);
-    rr(frame, x0 + m, y0 + m, x1 - m, y1 - m, 0.011, true);
-    const fGeo = new THREE.ExtrudeGeometry(frame, { depth: bz, bevelEnabled: true, bevelThickness: 0.0015, bevelSize: 0.0015, bevelSegments: 3, curveSegments: 12 });
-    fGeo.translate(0, 0, D);
-    g.add(new THREE.Mesh(fGeo, black));
-    // Dark filter at the back of the recess (behind the slats, in front of the fans).
-    const filter = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0 - 2 * m, y1 - y0 - 2 * m), inner);
-    filter.position.set((x0 + x1) / 2, (y0 + y1) / 2, D + 0.004);
-    filter.material = inner.clone();
-    filter.material.transparent = true;
-    filter.material.opacity = 0.55;
-    filter.material.depthWrite = false;
-    g.add(filter);
-    this.panelMeshes.push(filter);
-    // Ten walnut slats with rounded ends.
-    const n = 10, sw = 0.0105, sd = 0.012;
-    const span = x1 - x0 - 2 * m - 0.012;
-    const slatGeo = new THREE.BoxGeometry(sw, y1 - y0 - 2 * m - 0.014, sd);
-    for (let i = 0; i < n; i++) {
-      const sx = x0 + m + 0.006 + sw / 2 + (i * (span - sw)) / (n - 1);
-      const slat = new THREE.Mesh(slatGeo, walnut);
-      slat.position.set(sx, (y0 + y1) / 2, D + bz - sd / 2 - 0.003);
-      g.add(slat);
-    }
-
-    // Top: solid front cap, flush with the mesh; only its front edge curves into the frame.
-    const capD = 0.1;
-    const cz0 = D - capD, cz1 = D + bz, cr = 0.016;
-    const cap = new THREE.Shape();
-    cap.moveTo(x0, cz0);
-    cap.lineTo(x1, cz0);
-    cap.lineTo(x1, cz1 - cr); cap.quadraticCurveTo(x1, cz1, x1 - cr, cz1);
-    cap.lineTo(x0 + cr, cz1); cap.quadraticCurveTo(x0, cz1, x0, cz1 - cr);
-    cap.lineTo(x0, cz0);
-    const capGeo = new THREE.ExtrudeGeometry(cap, { depth: 0.005, bevelEnabled: true, bevelThickness: 0.001, bevelSize: 0.001, bevelSegments: 2, curveSegments: 12 });
-    capGeo.rotateX(Math.PI / 2);   // shape (x, y) -> (x, z), depth -> -y
-    const topY = H + 0.007;
-    capGeo.translate(0, topY - 0.001, 0);
-    g.add(new THREE.Mesh(capGeo, black));
-
-    // Front I/O row: power button, 2 audio jacks, 2 USB-A, USB-C, joined by a fine line.
-    const hole = new THREE.MeshStandardMaterial({ color: 0x0a0a0b, roughness: 0.6, metalness: 0.2 });
-    hole.userData.keep = true;
-    const lineMat = new THREE.MeshStandardMaterial({ color: 0x0f0f10, roughness: 0.7, metalness: 0.1 });
-    lineMat.userData.keep = true;
-    const rowZ = cz0 + 0.6 * (cz1 - cz0);
-    const at = (f) => x0 + f * (x1 - x0);
-    const yS = topY + 0.0002; // just above the cap surface
-    const add = (geo, mat, x, y = yS) => { const o = new THREE.Mesh(geo, mat); o.position.set(x, y, rowZ); g.add(o); return o; };
-    // Fine line from the button to the right, with a brass tail past the last port.
-    add(new THREE.BoxGeometry(at(0.66) - at(0.14), 0.0003, 0.0005), lineMat, (at(0.14) + at(0.66)) / 2);
-    add(new THREE.BoxGeometry(at(0.88) - at(0.66), 0.0003, 0.0005), brass, (at(0.66) + at(0.88)) / 2);
-    // Power button: brass disc in a dark recess ring.
-    add(new THREE.CylinderGeometry(0.0062, 0.0062, 0.0004, 40), hole, at(0.14));
-    add(new THREE.CylinderGeometry(0.0052, 0.0052, 0.0012, 40), brass, at(0.14), yS + 0.0004);
-    // Audio jacks: dark holes with a brass rim.
-    for (const f of [0.26, 0.33]) {
-      add(new THREE.CylinderGeometry(0.0021, 0.0021, 0.0004, 24), brass, at(f));
-      add(new THREE.CylinderGeometry(0.0014, 0.0014, 0.0006, 24), hole, at(f));
-    }
-    // USB-A and USB-C ports.
-    for (const f of [0.43, 0.53]) add(new THREE.BoxGeometry(0.0075, 0.0006, 0.003), hole, at(f));
-    const usbc = add(new THREE.CylinderGeometry(0.0011, 0.0011, 0.0006, 16), hole, at(0.635) - 0.0018);
-    add(new THREE.BoxGeometry(0.0036, 0.0006, 0.0022), hole, at(0.635));
-    add(usbc.geometry, hole, at(0.635) + 0.0018);
-    const meshTop = new THREE.MeshStandardMaterial({
-      map: hexPanelTexture(D - capD + 0.004, W + 0.012, 0.0022, '#1d1e21'), transparent: true, depthWrite: false,
-      side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1,
+    const body = new THREE.MeshStandardMaterial({ color: 0x1d1e21, roughness: 0.7, metalness: 0.2 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: 0.6, metalness: 0.2 });
+    dark.userData.keep = true;
+    const perf = (w, h) => new THREE.MeshStandardMaterial({
+      map: hexPanelTexture(w, h, 0.0028, '#1f2023'), transparent: true, depthWrite: false,
+      side: THREE.DoubleSide, roughness: 0.75, metalness: 0.2,
     });
-    const top = planeRect(1, topY, x0, x1, -0.004, cz0, meshTop);
+    const e = 0.004; // panels sit just outside the interior
+
+    // Front: one flush perforated sheet, full width and height.
+    const front = planeRect(2, D + e, -0.003, W + 0.003, -0.003, H + 0.003, perf(W + 0.006, H + 0.006));
+    g.add(front);
+    this.panelMeshes.push(front);
+
+    // Top: perforated over the fan area, a slim solid control strip at the front.
+    const strip = 0.045;
+    const top = planeRect(1, H + e, -0.003, W + 0.003, -0.003, D - strip, perf(D - strip + 0.003, W + 0.006));
     g.add(top);
     this.panelMeshes.push(top);
+    g.add(boxMesh([-0.003, H, D - strip], [W + 0.003, H + e + 0.001, D + e], body));
+    // Power button and two USB-C ports, flush in the strip.
+    const zc = D - strip / 2 + e / 2;
+    const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.0055, 0.0055, 0.0008, 40), dark);
+    btn.position.set(W * 0.22, H + e + 0.0014, zc);
+    g.add(btn);
+    for (const x of [W * 0.34, W * 0.42]) g.add(boxMesh([x - 0.0035, H + e + 0.001, zc - 0.0012], [x + 0.0035, H + e + 0.0016, zc + 0.0012], dark));
 
-    // Glass side: solid strip over the front quarter (the glass ends there).
-    const strip = new THREE.Mesh(new THREE.BoxGeometry(0.004, H + 0.01, capD - 0.004), black);
-    strip.position.set(-0.004, H / 2 + 0.001, D - capD / 2 + 0.002);
-    g.add(strip);
-    this.panelMeshes.push(strip);
-
-    // Bottom trim and feet: black cylinder with a brushed brass ring.
-    g.add(boxMesh([x0, -0.006, -0.003], [x1, 0, D + 0.004], black));
-    const footGeo = new THREE.CylinderGeometry(0.0125, 0.0125, 0.008, 32);
-    const ringGeo = new THREE.CylinderGeometry(0.0128, 0.0128, 0.003, 32);
-    for (const x of [0.032, W - 0.032]) for (const z of [0.04, D - 0.01]) {
-      const f = new THREE.Mesh(footGeo, black);
-      f.position.set(x, -0.006 - 0.004, z);
-      const ring = new THREE.Mesh(ringGeo, brass);
-      ring.position.set(x, -0.0155, z);
-      g.add(f, ring);
-    }
-
-    // Rear pull tab.
-    g.add(boxMesh([W / 2 - 0.012, H - 0.002, -0.006], [W / 2 + 0.012, H + 0.008, 0], leather));
+    // Plinth and two rubber foot rails running front to back.
+    g.add(boxMesh([-0.003, -0.008, -0.003], [W + 0.003, 0, D + e], body));
+    for (const x of [0.02, W - 0.045]) g.add(boxMesh([x, -0.016, 0.01], [x + 0.025, -0.008, D - 0.006], dark));
   }
 
   buildParts() {
@@ -1073,7 +961,7 @@ export class CaseView {
       for (const m of mats) {
         if (!m || seen.has(m) || !m.isMeshStandardMaterial) continue;
         seen.add(m);
-        if (m.userData.keep) continue; // walnut slats and brass accents stay in colour
+        if (m.userData.keep) continue; // small dark accents (buttons, ports, feet) keep their colour
         m.color.getHSL(hsl);
         const glass = m.transparent && m.opacity < 0.12;
         const smoked = m.transparent && !m.map && m.opacity >= 0.12 && m.opacity < 0.6;

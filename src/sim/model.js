@@ -5,21 +5,24 @@
 //   y: 0 = floor,             H = roof
 //   z: 0 = rear panel,        D = front panel
 
-// Interior of a mid-tower measuring 434 x 215 x 450 mm (L x W x H, without feet):
-// the deep front frame (~32 mm) and top/bottom trim sit outside this volume.
-export const CASE = { W: 0.21, H: 0.44, D: 0.40 };
+// Interior of an original minimal ATX airflow case (W x H x D). Perforated
+// front and top panels, glass side and trim sit just outside this volume.
+export const CASE = { W: 0.21, H: 0.46, D: 0.44 };
 
 export const CFM_PER_M3S = 2118.88;
 
 // Fan slots in the case walls. `face` names the wall, `c` is the slot center
 // in case coordinates, `size` is the fan frame size, `fan` the fan model.
-// Case mounts: front 2 x 140 mm, top 2 x 140 mm, rear 1 x 120 mm, no bottom mount.
+// Mounts: 3 x 140 mm front, 2 x 140 mm top, 1 x 140 mm rear, 1 x 140 mm bottom
+// (under the open front section, ahead of the PSU shroud).
 export const SLOTS = [
-  { id: 'front-top', label: 'Front Top', face: 'front', c: [0.105, 0.335, CASE.D], size: 0.14, fan: 'a14' },
-  { id: 'front-low', label: 'Front Bottom', face: 'front', c: [0.105, 0.19, CASE.D], size: 0.14, fan: 'a14' },
-  { id: 'top-front', label: 'Top Front', face: 'top', c: [0.09, CASE.H, 0.215], size: 0.14, fan: 'a14' },
-  { id: 'top-rear', label: 'Top Rear', face: 'top', c: [0.09, CASE.H, 0.075], size: 0.14, fan: 'a14' },
-  { id: 'rear', label: 'Rear', face: 'rear', c: [0.1, 0.345, 0], size: 0.12, fan: 'a12' },
+  { id: 'front-top', label: 'Front Top', face: 'front', c: [0.105, 0.365, CASE.D], size: 0.14, fan: 'a14' },
+  { id: 'front-mid', label: 'Front Middle', face: 'front', c: [0.105, 0.225, CASE.D], size: 0.14, fan: 'a14' },
+  { id: 'front-low', label: 'Front Bottom', face: 'front', c: [0.105, 0.085, CASE.D], size: 0.14, fan: 'a14' },
+  { id: 'top-front', label: 'Top Front', face: 'top', c: [0.09, CASE.H, 0.27], size: 0.14, fan: 'a14' },
+  { id: 'top-rear', label: 'Top Rear', face: 'top', c: [0.09, CASE.H, 0.12], size: 0.14, fan: 'a14' },
+  { id: 'rear', label: 'Rear', face: 'rear', c: [0.1, 0.345, 0], size: 0.14, fan: 'a14' },
+  { id: 'bottom', label: 'Bottom', face: 'bottom', c: [0.105, 0, 0.36], size: 0.14, fan: 'a14' },
 ];
 
 // Outward normal axis/sign of each wall.
@@ -233,40 +236,13 @@ export function psuLayout(mode) {
   return layout;
 }
 
+const M = (ft, fm, fl, tf, tr, r, b) => ({ 'front-top': ft, 'front-mid': fm, 'front-low': fl, 'top-front': tf, 'top-rear': tr, rear: r, bottom: b });
 export const PRESETS = {
-  balanced: {
-    label: 'Balanced',
-    hint: '2 front intake, top rear + rear exhaust',
-    modes: { 'front-top': 'intake', 'front-low': 'intake', 'top-front': 'open', 'top-rear': 'exhaust', rear: 'exhaust' },
-  },
-  positive: {
-    label: 'Positive Pressure',
-    hint: 'more intake than exhaust',
-    modes: { 'front-top': 'intake', 'front-low': 'intake', 'top-front': 'blocked', 'top-rear': 'open', rear: 'exhaust' },
-  },
-  negative: {
-    label: 'Negative Pressure',
-    hint: 'exhaust-heavy',
-    modes: { 'front-top': 'open', 'front-low': 'intake', 'top-front': 'exhaust', 'top-rear': 'exhaust', rear: 'exhaust' },
-  },
-  chimney: {
-    label: 'Chimney',
-    hint: 'low front in, all top out',
-    modes: { 'front-top': 'blocked', 'front-low': 'intake', 'top-front': 'exhaust', 'top-rear': 'exhaust', rear: 'blocked' },
-  },
-  stock: {
-    label: 'Stock',
-    hint: 'rear exhaust only',
-    modes: { 'front-top': 'open', 'front-low': 'open', 'top-front': 'open', 'top-rear': 'open', rear: 'exhaust' },
-  },
-  backwards: {
-    label: 'Backwards',
-    hint: 'fans fighting the coolers',
-    modes: { 'front-top': 'exhaust', 'front-low': 'exhaust', 'top-front': 'intake', 'top-rear': 'intake', rear: 'intake' },
-  },
-  passive: {
-    label: 'Passive',
-    hint: 'no case fans',
-    modes: { 'front-top': 'open', 'front-low': 'open', 'top-front': 'open', 'top-rear': 'open', rear: 'open' },
-  },
+  balanced: { label: 'Balanced', hint: '3 front intake, top + rear exhaust', modes: M('intake', 'intake', 'intake', 'exhaust', 'exhaust', 'exhaust', 'open') },
+  positive: { label: 'Positive Pressure', hint: 'more intake than exhaust', modes: M('intake', 'intake', 'intake', 'blocked', 'open', 'exhaust', 'intake') },
+  negative: { label: 'Negative Pressure', hint: 'exhaust-heavy', modes: M('open', 'intake', 'open', 'exhaust', 'exhaust', 'exhaust', 'open') },
+  chimney: { label: 'Chimney', hint: 'bottom and low front in, top out', modes: M('blocked', 'blocked', 'intake', 'exhaust', 'exhaust', 'blocked', 'intake') },
+  stock: { label: 'Stock', hint: 'rear exhaust only', modes: M('open', 'open', 'open', 'open', 'open', 'exhaust', 'open') },
+  backwards: { label: 'Backwards', hint: 'fans fighting the coolers', modes: M('exhaust', 'exhaust', 'exhaust', 'intake', 'intake', 'intake', 'blocked') },
+  passive: { label: 'Passive', hint: 'no case fans', modes: M('open', 'open', 'open', 'open', 'open', 'open', 'open') },
 };
