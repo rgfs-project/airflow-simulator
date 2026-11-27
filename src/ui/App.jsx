@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Fan, Play, Pause, SlidersHorizontal, Grid2x2, Plus, Minus, ArrowLeft, ArrowRight, X } from 'lucide-react';
+import { Fan, Play, Pause, StepForward, SlidersHorizontal, Grid2x2, Plus, Minus, ArrowLeft, ArrowRight, X } from 'lucide-react';
 import { SLOTS, PRESETS, CFM_PER_M3S, PSU_MODES, SLOT_MODES } from '../sim/model.js';
 import { cssGradient, heat, turbo, diverging, SOURCE_COLORS } from '../render/colormap.js';
 import { store, useStore, call, syncView } from './store.js';
@@ -38,7 +38,12 @@ function Topbar({ onSettings }) {
         <button type="button" className="btn soft icon" aria-label="Settings" title="Settings" onClick={onSettings}>
           <Icon as={SlidersHorizontal} />
         </button>
-        <button type="button" className="btn primary" onClick={() => call('onPause')}>
+        {paused && (
+          <button type="button" className="btn soft step" aria-label="Step" title="Advance one step (.)" onClick={() => call('onStep')}>
+            <Icon as={StepForward} /><span>Step</span>
+          </button>
+        )}
+        <button type="button" className="btn primary" title="Space" aria-keyshortcuts="Space" onClick={() => call('onPause')}>
           <Icon as={paused ? Play : Pause} /><span>{paused ? 'Resume' : 'Pause'}</span>
         </button>
       </div>
@@ -156,20 +161,22 @@ function Stage() {
   );
 }
 
+/** Move to the next (+1) or previous (-1) preset; from a custom setup, start at either end. */
+function stepPreset(d) {
+  const cur = PRESET_IDS.indexOf(store.get().preset);
+  const next = cur < 0 ? (d > 0 ? 0 : PRESET_IDS.length - 1) : (cur + d + PRESET_IDS.length) % PRESET_IDS.length;
+  call('onPreset', PRESET_IDS[next]);
+}
+
 function PresetBar() {
   const preset = useStore((s) => s.preset);
-  const index = useRef(0);
-  if (preset) index.current = PRESET_IDS.indexOf(preset);
-  const step = (d) => {
-    index.current = (index.current + d + PRESET_IDS.length) % PRESET_IDS.length;
-    call('onPreset', PRESET_IDS[index.current]);
-  };
+  const step = stepPreset;
   return (
     <div id="presetbar">
-      <div className="caption"><p><b>{preset ? PRESETS[preset].label : 'Custom'}</b></p></div>
+      <div className="caption"><p aria-live="polite"><b>{preset ? PRESETS[preset].label : 'Custom'}</b></p></div>
       <div className="arrows">
-        <button type="button" className="btn soft icon" aria-label="Previous preset" onClick={() => step(-1)}><Icon as={ArrowLeft} /></button>
-        <button type="button" className="btn soft icon" aria-label="Next preset" onClick={() => step(1)}><Icon as={ArrowRight} /></button>
+        <button type="button" className="btn soft icon" aria-label="Previous preset" title="Previous preset (←)" onClick={() => step(-1)}><Icon as={ArrowLeft} /></button>
+        <button type="button" className="btn soft icon" aria-label="Next preset" title="Next preset (→)" onClick={() => step(1)}><Icon as={ArrowRight} /></button>
       </div>
     </div>
   );
@@ -308,17 +315,29 @@ function Settings({ onClose }) {
   const [buoyancy, setBuoyancy] = useState(init.buoyancy);
   const [shown, setShown] = useState(false);
   const closeRef = useRef(null);
+  const dialogRef = useRef(null);
   useEffect(() => {
     const prev = document.activeElement;
     closeRef.current?.focus();
     const raf = requestAnimationFrame(() => setShown(true));
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key !== 'Tab') return;
+      // Keep Tab inside the dialog while it is open.
+      const items = [...dialogRef.current.querySelectorAll('button, input, select, [href], [tabindex]:not([tabindex="-1"])')]
+        .filter((el) => !el.disabled && el.offsetParent !== null);
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && (document.activeElement === first || !dialogRef.current.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || !dialogRef.current.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+    };
     window.addEventListener('keydown', onKey);
     return () => { cancelAnimationFrame(raf); window.removeEventListener('keydown', onKey); prev?.focus?.(); };
   }, [onClose]);
   return (
     <div className={`scrim${shown ? ' in' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="settings-h">
+      <div ref={dialogRef} className="dialog" role="dialog" aria-modal="true" aria-labelledby="settings-h">
         <button ref={closeRef} type="button" className="btn soft icon closebtn" aria-label="Close" onClick={onClose}><Icon as={X} /></button>
         <h1 id="settings-h">Settings</h1>
         <div className="cols">
@@ -369,6 +388,19 @@ export function App() {
   const [settings, setSettings] = useState(false);
   const ready = useStore((s) => s.ready);
   const closeSettings = useRef(() => setSettings(false)).current;
+  // Shortcuts apply only when nothing else has focus (Space, handled by the engine, works the same way).
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.target !== document.body || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'ArrowRight') stepPreset(1);
+      else if (e.key === 'ArrowLeft') stepPreset(-1);
+      else if (e.key === '.' && store.get().paused) call('onStep');
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   return (
     <>
       <Topbar onSettings={() => setSettings(true)} />

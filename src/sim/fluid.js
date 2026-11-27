@@ -28,7 +28,10 @@ export class FluidGrid {
     this.dragX = new Float32Array(n);
     this.dragY = new Float32Array(n);
     this.dragZ = new Float32Array(n);
-    this.p = new Float32Array(n);
+    // Pressure is padded by one z-layer on each side so the SOR stencil can read
+    // its six neighbours without bounds checks; `p` is a view of the real cells.
+    this.pPad = new Float32Array(n + 2 * nx * ny);
+    this.p = this.pPad.subarray(nx * ny, nx * ny + n);
     this.diag = new Float32Array(n);
     this.rhs = new Float32Array(n);
     this.T = new Float32Array(n);
@@ -62,6 +65,12 @@ export class FluidGrid {
     // Solid cells that touch fluid; their temperature is extrapolated from the
     // neighbouring air so the advection does not pull in garbage values.
     this.solidSkin = [];
+
+    // SOR stencil, built by finalizeTopology(): per-cell neighbour coefficients
+    // (zero towards the domain edge, where the ghost pressure is 0) and the
+    // fluid cells of each red/black colour.
+    this.sorCoef = null;
+    this.sorCells = [new Int32Array(0), new Int32Array(0)];
   }
 
   // ---- indexing -----------------------------------------------------------
@@ -139,6 +148,7 @@ export class FluidGrid {
         this.vC[this.vi(i, j, k)] + this.vC[this.vi(i, j + 1, k)] +
         this.wC[this.wi(i, j, k)] + this.wC[this.wi(i, j, k + 1)];
     }
+    this.buildStencil();
     this.solidSkin = [];
     for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
       const c = this.ci(i, j, k);
@@ -152,6 +162,27 @@ export class FluidGrid {
       if (k < nz - 1 && !solid[c + nx * ny]) nb.push(c + nx * ny);
       if (nb.length) this.solidSkin.push(c, nb);
     }
+  }
+
+  /** Flatten the face coefficients into the per-cell arrays the SOR sweep reads. */
+  buildStencil() {
+    const { nx, ny, nz, n, diag } = this;
+    const coef = new Float32Array(6 * n);
+    const lists = [[], []];
+    for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+      const c = this.ci(i, j, k);
+      if (diag[c] === 0) continue;
+      const o = 6 * c;
+      if (i > 0) coef[o] = this.uC[this.ui(i, j, k)];
+      if (i < nx - 1) coef[o + 1] = this.uC[this.ui(i + 1, j, k)];
+      if (j > 0) coef[o + 2] = this.vC[this.vi(i, j, k)];
+      if (j < ny - 1) coef[o + 3] = this.vC[this.vi(i, j + 1, k)];
+      if (k > 0) coef[o + 4] = this.wC[this.wi(i, j, k)];
+      if (k < nz - 1) coef[o + 5] = this.wC[this.wi(i, j, k + 1)];
+      lists[(i + j + k) & 1].push(c);
+    }
+    this.sorCoef = coef;
+    this.sorCells = [Int32Array.from(lists[0]), Int32Array.from(lists[1])];
   }
 
   applyFixed() {
@@ -291,35 +322,13 @@ export class FluidGrid {
     }
 
     const omega = this.omega;
+    const pp = this.pPad;
+    const off = sz;
+    const coef = this.sorCoef;
+    const [red, black] = this.sorCells;
     for (let it = 0; it < this.iterations; it++) {
-      for (let color = 0; color < 2; color++) {
-        for (let k = 0; k < nz; k++) {
-          for (let j = 0; j < ny; j++) {
-            let i = (j + k + color) & 1;
-            for (; i < nx; i += 2) {
-              const c = i + nx * (j + ny * k);
-              const d = diag[c];
-              if (d === 0) continue;
-              let s = 0;
-              let cf;
-              cf = uC[i + (nx + 1) * (j + ny * k)];
-              if (cf && i > 0) s += cf * p[c - sx];
-              cf = uC[i + 1 + (nx + 1) * (j + ny * k)];
-              if (cf && i < nx - 1) s += cf * p[c + sx];
-              cf = vC[i + nx * (j + (ny + 1) * k)];
-              if (cf && j > 0) s += cf * p[c - sy];
-              cf = vC[i + nx * (j + 1 + (ny + 1) * k)];
-              if (cf && j < ny - 1) s += cf * p[c + sy];
-              cf = wC[c];
-              if (cf && k > 0) s += cf * p[c - sz];
-              cf = wC[c + sz];
-              if (cf && k < nz - 1) s += cf * p[c + sz];
-              const pn = (s - rhs[c]) / d;
-              p[c] += omega * (pn - p[c]);
-            }
-          }
-        }
-      }
+      sweep(pp, off, coef, diag, rhs, red, omega, sx, sy, sz);
+      sweep(pp, off, coef, diag, rhs, black, omega, sx, sy, sz);
     }
 
     // Subtract the pressure gradient (ghost pressure outside the case is 0).
@@ -474,6 +483,20 @@ export class FluidGrid {
       const c = this.ci(i, j, k);
       if (!solid[c]) T[c] += (amb - T[c]) * loss;
     }
+  }
+}
+
+/** One SOR half-sweep over the cells of a single colour. */
+function sweep(pp, off, coef, diag, rhs, cells, omega, sx, sy, sz) {
+  for (let q = 0; q < cells.length; q++) {
+    const c = cells[q];
+    const a = c + off;
+    const o = 6 * c;
+    const s =
+      coef[o] * pp[a - sx] + coef[o + 1] * pp[a + sx] +
+      coef[o + 2] * pp[a - sy] + coef[o + 3] * pp[a + sy] +
+      coef[o + 4] * pp[a - sz] + coef[o + 5] * pp[a + sz];
+    pp[a] += omega * ((s - rhs[c]) / diag[c] - pp[a]);
   }
 }
 

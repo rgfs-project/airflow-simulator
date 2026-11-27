@@ -17,14 +17,27 @@ export function Slider({ label, min, max, step, initial, value, fmt, onChange })
   );
 }
 
-/** Segmented control (radio group of buttons). */
+/** Segmented control (radio group of buttons): one tab stop, arrow keys move the selection. */
 export function Seg({ options, value, onPick, wide = true }) {
+  const onKeyDown = (e) => {
+    const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    if (!d) return;
+    e.preventDefault();
+    const cur = options.findIndex(([key]) => String(key) === String(value));
+    const to = ((cur < 0 ? (d > 0 ? -1 : 0) : cur) + d + options.length) % options.length;
+    onPick(options[to][0]);
+    e.currentTarget.querySelectorAll('button')[to]?.focus();
+  };
+  const selected = options.some(([key]) => String(key) === String(value));
   return (
-    <div className={`seg${wide ? ' wide' : ''}`} role="radiogroup">
-      {options.map(([key, label]) => {
+    <div className={`seg${wide ? ' wide' : ''}`} role="radiogroup" onKeyDown={onKeyDown}>
+      {options.map(([key, label], n) => {
         const on = String(key) === String(value);
         return (
-          <button key={key} type="button" role="radio" aria-checked={on} className={on ? 'on' : undefined} onClick={() => onPick(key)}>
+          <button
+            key={key} type="button" role="radio" aria-checked={on} tabIndex={on || (!selected && n === 0) ? 0 : -1}
+            className={on ? 'on' : undefined} onClick={() => onPick(key)}
+          >
             {label}
           </button>
         );

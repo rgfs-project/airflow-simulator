@@ -297,6 +297,9 @@ select:hover { background-color: var(--soft-hover); }
   body { overflow: auto; padding-top: calc(var(--top) + env(safe-area-inset-top)); }
   #topbar { position: fixed; top: 0; left: 0; right: 0; padding: env(safe-area-inset-top) 16px 0; height: calc(var(--top) + env(safe-area-inset-top)); }
   .hide-sm { display: none; }
+  /* Icon-only Step button so the top bar fits a 360px phone. */
+  .btn.step { width: var(--h); padding: 0; }
+  .btn.step span:not(.ico) { display: none; }
   #main { display: block; height: auto; padding: 12px 12px calc(24px + env(safe-area-inset-bottom)); }
   #stage { flex: none; height: min(64svh, 560px); }
   #presetbar { padding: 14px 4px 18px; }

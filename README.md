@@ -19,7 +19,8 @@ npm test           # physics sanity tests (Node 20+)
 - **Presets**: balanced, positive pressure, negative pressure, chimney, stock (rear fan only), backwards, and passive.
 - **Load**: CPU and GPU power, room temperature, case fan speed. The cooler fans either follow a temperature curve or run at a fixed speed you set.
 - **Readouts**: CPU and GPU die temperatures (with thermal throttling), average, exhaust and hottest air temperatures, CFM per fan, passive vent flow, and case pressure in pascals.
-- **Visualisation**: streaks coloured by air temperature, speed, or the inlet the air came through. There's also a movable cross-section plane that shows speed, temperature or pressure, plus slow motion, pause and single-step.
+- **Keyboard**: Space pauses and resumes, `.` advances one step while paused, and ← / → switch presets (when nothing else has focus). Segmented controls and the settings dialog are fully keyboard-navigable.
+- **Visualisation**: streaks coloured by air temperature, speed, or the inlet the air came through. There's also a movable cross-section plane that shows speed, temperature or pressure, plus slow motion, pause and a Step button for single-stepping.
 
 ## Modelled hardware
 
